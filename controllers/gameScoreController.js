@@ -2,6 +2,7 @@ const GameScoreService = require('../services/gameScoreService.js');
 
 class GameScoreController {
   static async getAllGameScores(req, res) {
+    console.log('getAllGameScores called');
     try {
       const scores = await GameScoreService.getAllGameScores();
       res.json(scores);

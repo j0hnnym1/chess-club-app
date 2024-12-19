@@ -1,11 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const TournamentController = require('../controllers/tournamentController.js');
+const authMiddleware = require('../middleware/authMiddleware.js');
 
-router.get('/', TournamentController.getAllTournaments);
-router.get('/:id', TournamentController.getTournamentById);
-router.post('/', TournamentController.createTournament);
-router.put('/:id', TournamentController.updateTournament);
-router.delete('/:id', TournamentController.deleteTournament);
+router.get('/', authMiddleware, TournamentController.getAllTournaments);
+router.post('/', authMiddleware, TournamentController.createTournament);
 
 module.exports = router;
