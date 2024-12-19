@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const tournamentSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  date: { type: Date, required: true },
+  date: { type: Date, default: Date.now },
   type: { type: String, enum: ['Swiss'], default: 'Swiss' },
   hostId: { type: mongoose.Schema.Types.ObjectId, ref: 'Player', required: true },
   players: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Player' }],
@@ -18,7 +18,6 @@ const tournamentSchema = new mongoose.Schema({
       ],
     },
   ],
-  createdAt: { type: Date, default: Date.now },
 });
 
 module.exports = mongoose.model('Tournament', tournamentSchema);
