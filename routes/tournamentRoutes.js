@@ -5,5 +5,6 @@ const authMiddleware = require('../middleware/authMiddleware.js');
 
 router.get('/', authMiddleware, TournamentController.getAllTournaments);
 router.post('/', authMiddleware, TournamentController.createTournament);
+router.post('/:tournamentId/pairings', authMiddleware, TournamentController.generatePairings);
 
 module.exports = router;
