@@ -79,14 +79,10 @@ class TournamentController {
   // Generate Swiss Pairings
   static async generatePairings(req, res) {
     try {
-      console.log('generatePairings called'); // Debug
       const { tournamentId } = req.params;
-
-      console.log('Tournament ID:', tournamentId); // Debug
 
       // Fetch players in the tournament
       const players = await Player.find({ tournamentId });
-      console.log('Players Found:', players); // Debug
 
       if (!players || players.length === 0) {
         return res.status(404).json({ error: 'No players found for this tournament.' });
