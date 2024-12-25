@@ -1,15 +1,30 @@
-import React from 'react';
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
-import Players from './pages/Player';
+import React, { useState } from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import Login from './pages/Login';
+import Players from './pages/Players';
+import Tournaments from './pages/Tournaments';
+import Layout from './components/Layout'; // Import the new Layout component
 
-function App() {
+const App = () => {
+  const [token, setToken] = useState(localStorage.getItem('token') || '');
+
   return (
     <Router>
-      <Routes>
-        <Route path="/players" element={<Players />} />
-      </Routes>
+      {token ? (
+        <Layout>
+          <Routes>
+            <Route path="/" element={<Tournaments token={token} />} />
+            <Route path="/players" element={<Players token={token} />} />
+            <Route path="/tournaments" element={<Tournaments token={token} />} />
+          </Routes>
+        </Layout>
+      ) : (
+        <Routes>
+          <Route path="/" element={<Login setToken={setToken} />} />
+        </Routes>
+      )}
     </Router>
   );
-}
+};
 
 export default App;
