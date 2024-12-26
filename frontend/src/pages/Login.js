@@ -16,7 +16,7 @@ const Login = ({ setToken }) => {
 
       const { token } = response.data;
       localStorage.setItem('token', token); // Save token in localStorage
-      setToken(token); // Pass the token to the parent or global state
+      setToken(token); // Update the token in the state
       setError('');
       alert('Login successful!');
     } catch (err) {

@@ -120,7 +120,7 @@ router.post(
       }
 
       const payload = { user: { id: user.id, role: user.role } };
-      const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
+      const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '24h' });
 
       // Debug: Log generated token
       console.log('Generated Token:', token);
@@ -133,5 +133,19 @@ router.post(
     }
   }
 );
+
+router.post('/refresh', (req, res) => {
+  const { refreshToken } = req.body;
+  if (!refreshToken) return res.status(401).json({ msg: 'No token, authorization denied' });
+
+  try {
+    const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
+    const newToken = jwt.sign({ user: decoded.user }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    res.json({ token: newToken });
+  } catch (err) {
+    console.error('Refresh token failed:', err.message);
+    res.status(403).json({ msg: 'Invalid refresh token' });
+  }
+});
 
 module.exports = router;
