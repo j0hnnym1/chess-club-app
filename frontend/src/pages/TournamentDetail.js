@@ -13,7 +13,8 @@ const fetchTournament = async ({ queryKey }) => {
   return response.data;
 };
 
-const fetchPlayers = async (token) => {
+const fetchPlayers = async ({ queryKey }) => {
+  const [, token] = queryKey;
   const response = await axios.get('http://localhost:3000/api/players', {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -26,15 +27,15 @@ const TournamentDetail = ({ token }) => {
   const { id } = useParams();
   const queryClient = useQueryClient();
 
-  const { data: tournament, isLoading: isTournamentLoading } = useQuery(
-    ['tournament', { id, token }],
-    fetchTournament
-  );
+  const { data: tournament, isLoading: isTournamentLoading } = useQuery({
+    queryKey: ['tournament', { id, token }],
+    queryFn: fetchTournament,
+  });
 
-  const { data: players, isLoading: isPlayersLoading } = useQuery(
-    ['players', token],
-    () => fetchPlayers(token)
-  );
+  const { data: players, isLoading: isPlayersLoading } = useQuery({
+    queryKey: ['players', token],
+    queryFn: fetchPlayers,
+  });
 
   const [search, setSearch] = useState('');
   const [selectedPlayers, setSelectedPlayers] = useState([]);
