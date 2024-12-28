@@ -1,25 +1,35 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { fetchTournaments } from '../services/tournamentService';
+import { Link } from 'react-router-dom';
+import axios from 'axios';
 
 const Tournaments = ({ token }) => {
-  console.log('Tournaments.js - Token Received:', token); // Debug: Log token
-
-  // Use the correct object syntax for useQuery
-  const { data: tournaments, error, isLoading } = useQuery({
+  const { data: tournaments, isLoading, error } = useQuery({
     queryKey: ['tournaments'],
-    queryFn: () => fetchTournaments(token),
+    queryFn: async () => {
+      const response = await axios.get('http://localhost:3000/api/tournaments', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return response.data;
+    },
   });
 
-  if (isLoading) return <div>Loading...</div>;
-  if (error) return <div>Error: {error.message}</div>;
+  console.log('Tournaments.js - Token:', token); // Debug
+  console.log('Tournaments.js - Data:', tournaments); // Debug
+
+  if (isLoading) return <div>Loading tournaments...</div>;
+  if (error) return <div>Error loading tournaments: {error.message}</div>;
 
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-4">Tournaments</h1>
-      <ul className="list-disc list-inside">
+      <ul>
         {tournaments.map((tournament) => (
-          <li key={tournament.id}>{tournament.name}</li>
+          <li key={tournament.id}>
+            <Link to={`/tournaments/${tournament.id}`} className="text-blue-500 underline">
+              {tournament.name}
+            </Link>
+          </li>
         ))}
       </ul>
     </div>
