@@ -2,9 +2,9 @@ const mongoose = require('mongoose');
 
 const tournamentSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  date: { type: Date, default: Date.now },
-  type: { type: String, enum: ['Swiss'], default: 'Swiss' },
-  hostId: { type: mongoose.Schema.Types.ObjectId, ref: 'Player', required: true },
+  date: { type: Date, required: true },
+  type: { type: String, required: true },
+  hostId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   players: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Player' }],
   rounds: [
     {
@@ -19,5 +19,6 @@ const tournamentSchema = new mongoose.Schema({
     },
   ],
 });
+
 
 module.exports = mongoose.model('Tournament', tournamentSchema);

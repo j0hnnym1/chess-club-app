@@ -2,6 +2,7 @@ const TournamentService = require('../services/tournamentService.js');
 const Player = require('../models/Player.js');
 const GameScore = require('../models/GameScore.js');
 const SwissPairingService = require('../services/swissPairingService.js');
+const Tournament = require('../models/Tournament');
 
 class TournamentController {
   static async getAllTournaments(req, res) {
@@ -16,16 +17,22 @@ class TournamentController {
 
   static async getTournamentById(req, res) {
     try {
-      const tournament = await TournamentService.getTournamentById(req.params.id);
+      const { id } = req.params;
+      console.log('Fetching Tournament ID:', id); // Debugging
+  
+      const tournament = await Tournament.findById(id);
       if (!tournament) {
-        return res.status(404).json({ error: 'Tournament not found.' });
+        return res.status(404).json({ error: 'Tournament not found' });
       }
+  
       res.json(tournament);
     } catch (err) {
-      console.error('Error fetching tournament by ID:', err.message);
-      res.status(404).json({ error: 'Invalid tournament ID.' });
+      console.error('Error fetching tournament:', err.message); // Debugging
+      res.status(500).json({ error: 'Server error' });
     }
   }
+  
+  
 
   static async createTournament(req, res) {
     try {
