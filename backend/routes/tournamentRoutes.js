@@ -11,5 +11,6 @@ router.post('/', authMiddleware, TournamentController.createTournament);
 router.post('/:tournamentId/pairings', authMiddleware, TournamentController.generatePairings);
 router.get('/:id', authMiddleware, TournamentController.getTournamentById);
 router.delete('/:id', authMiddleware, TournamentController.deleteTournament);
+router.put('/:id', authMiddleware, TournamentController.updateTournament);
 
 module.exports = router;

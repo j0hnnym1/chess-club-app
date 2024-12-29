@@ -15,22 +15,17 @@ const Tournaments = ({ token }) => {
 
   const deleteMutation = useMutation({
     mutationFn: async (tournamentId) => {
-      console.log('Deleting tournament ID:', tournamentId);
       if (!tournamentId) throw new Error('Tournament ID is required');
-      
-      const response = await axios.delete(`http://localhost:3000/api/tournaments/${tournamentId}`, {
+      return await axios.delete(`http://localhost:3000/api/tournaments/${tournamentId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
-      return response.data;
     },
-    onSuccess: (data) => {
-      console.log('Tournament deleted successfully:', data);
+    onSuccess: () => {
       queryClient.invalidateQueries(['tournaments']);
     },
     onError: (error) => {
-      console.error('Delete mutation error:', error.response?.data || error);
-      alert(error.response?.data?.message || 'Failed to delete tournament');
+      console.error('Delete mutation error:', error);
+      alert('Failed to delete tournament');
     }
   });
 

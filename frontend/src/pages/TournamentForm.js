@@ -21,77 +21,84 @@ const TournamentForm = ({ token, onSubmit, tournament }) => {
         setError('Failed to fetch players. Please try again.');
       }
     };
+
     fetchPlayers();
-  }, [token]);
+
+    if (tournament) {
+      console.log('Loading tournament data into form:', tournament); // Debugging
+      setName(tournament.name || '');
+      setDate(tournament.date?.slice(0, 10) || '');
+      setType(tournament.type || 'Swiss');
+      setPlayers(tournament.players || []);
+    } else {
+      console.error('Tournament is undefined.');
+    }
+  }, [tournament, token]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
+
+    if (!onSubmit || typeof onSubmit !== 'function') {
+      console.error('onSubmit is not defined or not a function');
+      setError('Submission handler is missing.');
+      return;
+    }
+
     if (!name || !date || !type) {
       setError('All fields are required.');
       return;
     }
+
     onSubmit({ name, date, type, players });
   };
 
   return (
-    <div className="p-4">
-      <h2 className="text-xl font-bold mb-4">{tournament ? 'Edit Tournament' : 'Create Tournament'}</h2>
-      {error && <div className="text-red-500 mb-2">{error}</div>}
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block font-medium">Name</label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="border rounded px-2 py-1 w-full"
-            required
-          />
-        </div>
-        <div>
-          <label className="block font-medium">Date</label>
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="border rounded px-2 py-1 w-full"
-            required
-          />
-        </div>
-        <div>
-          <label className="block font-medium">Type</label>
-          <select
-            value={type}
-            onChange={(e) => setType(e.target.value)}
-            className="border rounded px-2 py-1 w-full"
-          >
-            <option value="Swiss">Swiss</option>
-            <option value="Round Robin">Round Robin</option>
-          </select>
-        </div>
-        <div>
-          <label className="block font-medium">Players</label>
-          <select
-            multiple
-            value={players}
-            onChange={(e) => setPlayers([...e.target.selectedOptions].map((opt) => opt.value))}
-            className="border rounded px-2 py-1 w-full"
-          >
-            {availablePlayers.map((player) => (
-              <option key={player._id} value={player._id}>
-                {player.name} (Rating: {player.rating})
-              </option>
-            ))}
-          </select>
-        </div>
-        <button
-          type="submit"
-          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+    <form onSubmit={handleSubmit}>
+      <div>
+        <label>Name</label>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+        />
+      </div>
+      <div>
+        <label>Date</label>
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          required
+        />
+      </div>
+      <div>
+        <label>Type</label>
+        <select
+          value={type}
+          onChange={(e) => setType(e.target.value)}
         >
-          Save
-        </button>
-      </form>
-    </div>
+          <option value="Swiss">Swiss</option>
+          <option value="Round Robin">Round Robin</option>
+        </select>
+      </div>
+      <div>
+        <label>Players</label>
+        <select
+          multiple
+          value={players}
+          onChange={(e) => setPlayers([...e.target.selectedOptions].map((opt) => opt.value))}
+        >
+          {availablePlayers.map((player) => (
+            <option key={player._id} value={player._id}>
+              {player.name} (Rating: {player.rating})
+            </option>
+          ))}
+        </select>
+      </div>
+      <button type="submit">Save</button>
+      {error && <p>{error}</p>}
+    </form>
   );
 };
 
