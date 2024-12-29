@@ -26,5 +26,11 @@ app.use('/api/clubs', clubRoutes);
 app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/scores', gameScoreRoutes);
 
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Error:', err.stack);
+  res.status(500).json({ message: err.message || 'Internal server error' });
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
