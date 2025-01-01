@@ -5,7 +5,7 @@ const tournamentSchema = new mongoose.Schema({
   date: { type: Date, required: true },
   type: { type: String, required: true },
   players: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Player' }],
-  hostId: { type: mongoose.Schema.Types.ObjectId, required: true },
+  hostId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   rounds: [
     {
       roundNumber: { type: Number, required: true },

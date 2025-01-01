@@ -8,7 +8,8 @@ const TournamentDetail = ({ token }) => {
   console.log('TournamentDetail.js - Tournament ID:', id); // Debug: Log the ID
   console.log('TournamentDetail.js - Token:', token); // Debug: Log the token
 
-  const { data: tournament, isLoading, error } = useQuery({
+  // Fetch tournament details
+  const { data: tournament, isLoading: isTournamentLoading, error: tournamentError } = useQuery({
     queryKey: ['tournament', id],
     queryFn: async () => {
       const response = await axios.get(`http://localhost:3000/api/tournaments/${id}`, {
@@ -19,20 +20,42 @@ const TournamentDetail = ({ token }) => {
     enabled: !!id, // Ensure the query only runs if the ID exists
   });
 
-  if (isLoading) return <div>Loading tournament...</div>;
-  if (error) return <div>Error loading tournament: {error.message}</div>;
+  // Fetch all players and filter the ones in the tournament
+  const { data: allPlayers, isLoading: isPlayersLoading, error: playersError } = useQuery({
+    queryKey: ['players'],
+    queryFn: async () => {
+      const response = await axios.get('http://localhost:3000/api/players', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return response.data;
+    },
+    enabled: !!tournament, // Fetch players only after tournament data is loaded
+  });
+
+  if (isTournamentLoading || isPlayersLoading) return <div>Loading tournament details...</div>;
+  if (tournamentError) return <div>Error loading tournament: {tournamentError.message}</div>;
+  if (playersError) return <div>Error loading players: {playersError.message}</div>;
+
+  // Find player details for the tournament
+  const tournamentPlayers = allPlayers.filter((player) => tournament.players.includes(player.id));
 
   return (
     <div>
       <h1>{tournament.name}</h1>
       <p>Date: {new Date(tournament.date).toLocaleDateString()}</p>
       <p>Type: {tournament.type}</p>
-      <p>Players: {tournament.players.length}</p>
-      <ul>
-        {tournament.players.map((player) => (
-          <li key={player._id}>{player.name}</li>
-        ))}
-      </ul>
+      <h2>Players</h2>
+      {tournamentPlayers.length > 0 ? (
+        <ul>
+          {tournamentPlayers.map((player) => (
+            <li key={player.id}>
+              {player.name} (Rating: {player.rating})
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p>No players in this tournament.</p>
+      )}
     </div>
   );
 };

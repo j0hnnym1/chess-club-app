@@ -45,70 +45,60 @@ class TournamentController {
   static async createTournament(req, res) {
     try {
       const { name, date, type, players } = req.body;
-      console.log('Creating tournament with data:', { name, date, type, players }); // Debugging
-
       const hostId = req.user.id;
-      console.log('Host ID:', hostId); // Debugging
-
+  
+      // Validate players
       const validPlayers = await Player.find({ _id: { $in: players } });
       if (validPlayers.length !== players.length) {
-        console.warn('Invalid players provided:', players); // Debugging
-        return res.status(400).json({ error: 'Invalid players provided' });
+        return res.status(400).json({ error: 'One or more players are invalid' });
       }
-
+  
       const tournament = new Tournament({
         name,
         date,
         type,
         hostId,
-        players,
+        players, // Save the validated players
       });
-
+  
       await tournament.save();
-      console.log('Tournament created successfully:', tournament); // Debugging
-      return res.status(201).json(tournament);
+      res.status(201).json(tournament);
     } catch (err) {
       console.error('Error creating tournament:', err.message);
-      return res.status(500).json({ error: 'Server error' });
+      res.status(500).json({ error: 'Server error' });
     }
   }
-
+  
   static async updateTournament(req, res) {
     try {
       const { id } = req.params;
       const { players, ...updates } = req.body;
-      console.log('Updating tournament with ID:', id); // Debugging
-
-      if (!mongoose.Types.ObjectId.isValid(id)) {
-        console.warn('Invalid tournament ID:', id); // Debugging
-        return res.status(400).json({ error: 'Invalid tournament ID' });
-      }
-
+  
       const tournament = await Tournament.findById(id);
       if (!tournament) {
-        console.warn('Tournament not found with ID:', id); // Debugging
         return res.status(404).json({ error: 'Tournament not found' });
       }
-
+  
+      // Validate players
       if (players) {
         const validPlayers = await Player.find({ _id: { $in: players } });
         if (validPlayers.length !== players.length) {
-          console.warn('Invalid players provided for update:', players); // Debugging
-          return res.status(400).json({ error: 'Invalid players provided' });
+          return res.status(400).json({ error: 'One or more players are invalid' });
         }
-        tournament.players = players;
+        tournament.players = players; // Update with valid IDs
       }
-
+  
       Object.assign(tournament, updates);
       await tournament.save();
-      console.log('Tournament updated successfully:', tournament); // Debugging
-      return res.status(200).json(tournament);
+  
+      res.status(200).json(tournament);
     } catch (err) {
       console.error('Error updating tournament:', err.message);
-      return res.status(500).json({ error: 'Server error' });
+      res.status(500).json({ error: 'Internal server error' });
     }
   }
-
+  
+  
   static async deleteTournament(req, res) {
     try {
       const { id } = req.params;
