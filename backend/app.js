@@ -7,6 +7,7 @@ const playerRoutes = require('./routes/playerRoutes.js');
 const clubRoutes = require('./routes/clubRoutes.js');
 const tournamentRoutes = require('./routes/tournamentRoutes.js');
 const gameScoreRoutes = require('./routes/gameScoreRoutes.js');
+const tournamentRoundsRoutes = require('./routes/tournamentRoundsRoutes');
 
 dotenv.config();
 connectDB();
@@ -25,6 +26,8 @@ app.use('/api/players', playerRoutes);
 app.use('/api/clubs', clubRoutes);
 app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/scores', gameScoreRoutes);
+app.use('/api/tournaments', tournamentRoundsRoutes);
+app.use('/api/tournaments/:id', tournamentRoundsRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
