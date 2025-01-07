@@ -22,15 +22,75 @@ class TournamentRoundsController {
     static async startTournament(req, res) {
       try {
         console.log('Starting tournament:', req.params.tournamentId);
-        const tournament = await Tournament.findById(req.params.tournamentId)
-          .populate('players');
+        const tournament = await Tournament.findById(req.params.tournamentId).populate('players');
   
         if (!tournament) {
           console.log('Tournament not found');
           return res.status(404).json({ error: 'Tournament not found' });
         }
   
-        // Create pairings using Swiss system
+        console.log('Players in tournament:', tournament.players);
+  
+        const pairings = tournament.players.map((player, index, players) => {
+          if (index % 2 === 0) {
+            return {
+              player1: players[index]._id,
+              player2: players[index + 1] ? players[index + 1]._id : null,
+              result: players[index + 1] ? null : 'bye',
+            };
+          }
+          return null;
+        }).filter(pairing => pairing !== null);
+  
+        console.log('Generated pairings for first round:', pairings);
+  
+        const newRound = {
+          roundNumber: 1,
+          pairings,
+          completed: false,
+        };
+        console.log('New Round Object:', newRound);
+  
+        tournament.rounds = [newRound];
+        tournament.status = 'in_progress';
+  
+        await tournament.save();
+        console.log('Saved tournament with rounds:', tournament.rounds);
+  
+        res.json(tournament.rounds);
+      } catch (err) {
+        console.error('Error in startTournament:', err);
+        res.status(500).json({ error: 'Server error' });
+      }
+    }      
+  
+    static async addNextRound(req, res) {
+      try {
+        console.log('Adding next round for tournament:', req.params.tournamentId);
+        const tournament = await Tournament.findById(req.params.tournamentId)
+          .populate('players')
+          .populate('rounds.pairings.player1')
+          .populate('rounds.pairings.player2');
+  
+        if (!tournament) {
+          console.log('Tournament not found');
+          return res.status(404).json({ error: 'Tournament not found' });
+        }
+  
+        if (tournament.status !== 'in_progress') {
+          console.log('Tournament is not in progress');
+          return res.status(400).json({ error: 'Tournament is not in progress' });
+        }
+  
+        // Check if the current round is completed
+        const lastRound = tournament.rounds[tournament.rounds.length - 1];
+        if (lastRound && !lastRound.completed) {
+          console.log('Complete the current round before starting a new one');
+          return res.status(400).json({ error: 'Complete the current round before starting a new one' });
+        }
+  
+        // Generate pairings for the next round
+        const nextRoundNumber = tournament.rounds.length + 1;
         const pairings = tournament.players.map((player, index, players) => {
           if (index % 2 === 0) {
             return {
@@ -42,20 +102,20 @@ class TournamentRoundsController {
           return null;
         }).filter(pairing => pairing !== null);
   
-        // Create first round
-        tournament.rounds = [{
-          roundNumber: 1,
+        // Add the new round
+        const newRound = {
+          roundNumber: nextRoundNumber,
           pairings,
-          completed: false
-        }];
+          completed: false,
+        };
+        tournament.rounds.push(newRound);
   
-        tournament.status = 'in_progress';
         await tournament.save();
   
-        console.log('Tournament started successfully');
-        res.json(tournament.rounds);
+        console.log('Next round added successfully');
+        res.json({ message: 'Next round added successfully', tournament });
       } catch (err) {
-        console.error('Error in startTournament:', err);
+        console.error('Error in addNextRound:', err);
         res.status(500).json({ error: 'Server error' });
       }
     }

@@ -46,6 +46,22 @@ const TournamentDetail = ({ token }) => {
     },
   });
 
+  const updateResultMutation = useMutation({
+    mutationFn: async ({ roundNumber, pairingIndex, result }) => {
+      const response = await axios.put(
+        `http://localhost:3000/api/tournaments/${id}/rounds/${roundNumber}/result`,
+        { pairingIndex, result },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['tournament', id]);
+    },
+  });
+
   if (isLoading) return <div>Loading...</div>;
   if (!tournament) return <div>Tournament not found</div>;
 
@@ -53,6 +69,8 @@ const TournamentDetail = ({ token }) => {
     const player = allPlayers?.find((p) => p._id === playerId || p.id === playerId);
     return player || { id: playerId, name: 'Unknown Player' };
   }) || [];
+
+  console.log('Passing tournamentPlayers to RoundsTable:', tournamentPlayers);
 
   return (
     <div className="p-4">
@@ -97,8 +115,8 @@ const TournamentDetail = ({ token }) => {
         )}
         <RoundsTable
           rounds={tournament.rounds}
-          token={token}
-          tournamentId={id}
+          allPlayers={tournamentPlayers}
+          updateResultMutation={updateResultMutation}
         />
       </div>
     </div>

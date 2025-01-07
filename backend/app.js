@@ -27,7 +27,7 @@ app.use('/api/clubs', clubRoutes);
 app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/scores', gameScoreRoutes);
 app.use('/api/tournaments', tournamentRoundsRoutes);
-app.use('/api/tournaments/:id', tournamentRoundsRoutes);
+//app.use('/api/tournaments/:id', tournamentRoundsRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
