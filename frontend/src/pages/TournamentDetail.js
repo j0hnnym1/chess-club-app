@@ -8,7 +8,7 @@ const TournamentDetail = ({ token }) => {
   const { id } = useParams();
   const queryClient = useQueryClient();
 
-  const { data: tournament, isLoading } = useQuery({
+  const { data: tournament, isLoading: tournamentLoading } = useQuery({
     queryKey: ['tournament', id],
     queryFn: async () => {
       const response = await axios.get(`http://localhost:3000/api/tournaments/${id}`, {
@@ -30,13 +30,16 @@ const TournamentDetail = ({ token }) => {
     enabled: !!token,
   });
 
-  const startTournamentMutation = useMutation({
+  const drawRoundMutation = useMutation({
     mutationFn: async () => {
       const response = await axios.post(
-        `http://localhost:3000/api/tournaments/${id}/start`,
+        `http://localhost:3000/api/tournaments/${id}/rounds/next`,
         {},
         {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
         }
       );
       return response.data;
@@ -44,25 +47,12 @@ const TournamentDetail = ({ token }) => {
     onSuccess: () => {
       queryClient.invalidateQueries(['tournament', id]);
     },
+    onError: (error) => {
+      console.error('Error drawing round:', error.response?.data || error.message);
+    }
   });
 
-  const updateResultMutation = useMutation({
-    mutationFn: async ({ roundNumber, pairingIndex, result }) => {
-      const response = await axios.put(
-        `http://localhost:3000/api/tournaments/${id}/rounds/${roundNumber}/result`,
-        { pairingIndex, result },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-      return response.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries(['tournament', id]);
-    },
-  });
-
-  if (isLoading) return <div>Loading...</div>;
+  if (tournamentLoading) return <div>Loading...</div>;
   if (!tournament) return <div>Tournament not found</div>;
 
   const tournamentPlayers = tournament.players?.map((playerId) => {
@@ -70,7 +60,12 @@ const TournamentDetail = ({ token }) => {
     return player || { id: playerId, name: 'Unknown Player' };
   }) || [];
 
-  console.log('Passing tournamentPlayers to RoundsTable:', tournamentPlayers);
+  // Determine if we should show the "Draw First Round" button
+  const showDrawFirstRound = !tournament.rounds || tournament.rounds.length === 0;
+  
+  // Determine if the current round is complete
+  const currentRound = tournament.rounds && tournament.rounds[tournament.rounds.length - 1];
+  const isCurrentRoundComplete = currentRound?.pairings?.every(pairing => pairing.result);
 
   return (
     <div className="p-4">
@@ -105,19 +100,36 @@ const TournamentDetail = ({ token }) => {
 
       <div>
         <h2 className="text-xl font-bold mb-2">Rounds</h2>
-        {tournament.status === 'pending' && (
+        
+        {showDrawFirstRound ? (
           <button
-            onClick={() => startTournamentMutation.mutate()}
-            className="bg-blue-500 text-white px-4 py-2 rounded mb-4"
+            onClick={() => drawRoundMutation.mutate()}
+            className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded mb-4 disabled:bg-gray-400"
+            disabled={drawRoundMutation.isLoading}
           >
-            Start Tournament
+            {drawRoundMutation.isLoading ? 'Drawing...' : 'Draw First Round'}
+          </button>
+        ) : (
+          <button
+            onClick={() => drawRoundMutation.mutate()}
+            className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded mb-4 disabled:bg-gray-400"
+            disabled={!isCurrentRoundComplete || drawRoundMutation.isLoading}
+          >
+            {drawRoundMutation.isLoading ? 'Drawing...' : 'Draw Next Round'}
           </button>
         )}
-        <RoundsTable
-          rounds={tournament.rounds}
-          allPlayers={tournamentPlayers}
-          updateResultMutation={updateResultMutation}
-        />
+        
+        {tournament.rounds && tournament.rounds.length > 0 ? (
+          <RoundsTable
+            rounds={tournament.rounds}
+            tournamentPlayers={tournamentPlayers}
+            token={token}
+            tournamentId={id}
+            allPlayers={allPlayers}
+          />
+        ) : (
+          <div>No rounds available</div>
+        )}
       </div>
     </div>
   );

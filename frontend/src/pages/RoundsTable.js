@@ -1,73 +1,93 @@
 import React from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import axios from 'axios';
 
-const RoundsTable = ({ rounds = [], allPlayers = [], updateResultMutation }) => {
-  console.log('Rendering RoundsTable with rounds:', rounds);
-  console.log('All players data in RoundsTable:', allPlayers);
+const RoundsTable = ({ rounds = [], token, tournamentId, tournamentPlayers }) => {
+  const queryClient = useQueryClient();
+
+  const updateResultMutation = useMutation({
+    mutationFn: async ({ roundNumber, pairingIndex, result }) => {
+      const response = await axios.put(
+        `http://localhost:3000/api/tournaments/${tournamentId}/rounds/${roundNumber}/result`,
+        { pairingIndex, result },
+        { 
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          } 
+        }
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries(['tournament', tournamentId]);
+    }
+  });
 
   const getPlayerName = (playerId) => {
-    const player = allPlayers.find((p) => p._id === playerId || p.id === playerId);
+    const player = tournamentPlayers?.find((p) => p._id === playerId || p.id === playerId);
     return player ? player.name : 'Unknown';
   };
 
   return (
     <div>
-      {rounds?.length > 0 ? (
-        rounds.map((round) => (
-          <div key={round.roundNumber} className="mb-4 border p-4 rounded">
-            <h3 className="font-bold mb-2">Round {round.roundNumber}</h3>
-            <table className="min-w-full bg-white">
-              <thead>
-                <tr>
-                  <th className="px-4 py-2 text-left">Player 1</th>
-                  <th className="px-4 py-2 text-left">Player 2</th>
-                  <th className="px-4 py-2 text-left">Result</th>
+      {rounds.map((round) => (
+        <div key={round.roundNumber} className="mb-4 bg-white shadow rounded-lg p-4">
+          <h3 className="text-xl font-bold mb-4">Round {round.roundNumber}</h3>
+          <table className="min-w-full border">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="border px-4 py-2 text-left">White</th>
+                <th className="border px-4 py-2 text-left">Black</th>
+                <th className="border px-4 py-2 text-left">Result</th>
+              </tr>
+            </thead>
+            <tbody>
+              {round.pairings.map((pairing, index) => (
+                <tr key={index} className="hover:bg-gray-50">
+                  <td className="border px-4 py-2">{getPlayerName(pairing.player1)}</td>
+                  <td className="border px-4 py-2">
+                    {pairing.player2 ? getPlayerName(pairing.player2) : 'BYE'}
+                  </td>
+                  <td className="border px-4 py-2">
+                    {!round.completed ? (
+                      <select
+                        value={pairing.result || ''}
+                        onChange={(e) =>
+                          updateResultMutation.mutate({
+                            roundNumber: round.roundNumber,
+                            pairingIndex: index,
+                            result: e.target.value,
+                          })
+                        }
+                        className="border rounded p-1 w-full"
+                      >
+                        <option value="">Select Result</option>
+                        <option value="1-0">White Wins</option>
+                        <option value="0-1">Black Wins</option>
+                        <option value="1/2-1/2">Draw</option>
+                        {pairing.player2 === null && <option value="bye">Bye</option>}
+                      </select>
+                    ) : (
+                      <span className="font-medium">
+                        {pairing.result === '1-0'
+                          ? 'White Won'
+                          : pairing.result === '0-1'
+                          ? 'Black Won'
+                          : pairing.result === '1/2-1/2'
+                          ? 'Draw'
+                          : pairing.result === 'bye'
+                          ? 'Bye'
+                          : '-'}
+                      </span>
+                    )}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {round.pairings?.map((pairing, pairingIndex) => (
-                  <tr key={pairing._id}>
-                    <td className="border px-4 py-2">{getPlayerName(pairing.player1)}</td>
-                    <td className="border px-4 py-2">{pairing.player2 ? getPlayerName(pairing.player2) : 'BYE'}</td>
-                    <td className="border px-4 py-2">
-                      {!round.completed ? (
-                        <select
-                          value={pairing.result || ''}
-                          onChange={(e) =>
-                            updateResultMutation.mutate({
-                              roundNumber: round.roundNumber,
-                              pairingIndex,
-                              result: e.target.value || null,
-                            })
-                          }
-                          className="border rounded p-1"
-                        >
-                          <option value="">Select Result</option>
-                          <option value="player1">Player 1 Wins</option>
-                          <option value="player2">Player 2 Wins</option>
-                          <option value="draw">Draw</option>
-                          {!pairing.player2 && <option value="bye">Bye</option>}
-                        </select>
-                      ) : (
-                        <span className="font-bold">
-                          {pairing.result === 'player1'
-                            ? 'Player 1 Won'
-                            : pairing.result === 'player2'
-                            ? 'Player 2 Won'
-                            : pairing.result === 'draw'
-                            ? 'Draw'
-                            : 'Bye'}
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ))
-      ) : (
-        <div>No rounds available yet.</div>
-      )}
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
     </div>
   );
 };

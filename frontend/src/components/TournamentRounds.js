@@ -44,20 +44,30 @@ const TournamentRounds = ({ tournamentId, token }) => {
 
   const updateResultMutation = useMutation({
     mutationFn: async ({ roundNumber, pairingIndex, result }) => {
-      console.log('Updating result:', { roundNumber, pairingIndex, result });
+      console.log('Update mutation payload:', { tournamentId, roundNumber, pairingIndex, result }); // Debug log
+      if (!tournamentId) {
+        throw new Error('Tournament ID is missing');
+      }
       return axios.put(
-        `http://localhost:3000/api/tournaments/${tournamentId}/rounds/pairing`,
-        { roundNumber, pairingIndex, result },
+        `http://localhost:3000/api/tournaments/${tournamentId}/rounds/${roundNumber}/result`,
+        { pairingIndex, result },
         {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
         }
       );
     },
     onSuccess: () => {
       console.log('Result updated successfully');
       queryClient.invalidateQueries(['tournament-rounds', tournamentId]);
+    },
+    onError: (error) => {
+      console.error('Error updating result:', error);
+      console.error('Error response:', error.response?.data); // Debug log
     }
-  });
+});
 
   if (isLoading) return <div>Loading rounds...</div>;
   if (error) return <div>Error: {error.message}</div>;

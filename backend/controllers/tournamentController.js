@@ -98,7 +98,6 @@ class TournamentController {
     }
   }
   
-  
   static async deleteTournament(req, res) {
     try {
       const { id } = req.params;
@@ -160,6 +159,65 @@ class TournamentController {
     } catch (err) {
       console.error('Error generating pairings:', err.message);
       return res.status(500).json({ error: 'Failed to generate pairings.' });
+    }
+  }
+
+  static async startTournament(req, res) {
+    try {
+      console.log('Starting tournament:', req.params.id);
+      const tournament = await Tournament.findById(req.params.id).populate('players');
+
+      if (!tournament) {
+        console.log('Tournament not found');
+        return res.status(404).json({ error: 'Tournament not found' });
+      }
+
+      if (tournament.status !== 'pending') {
+        console.log('Tournament already started');
+        return res.status(400).json({ error: 'Tournament has already started' });
+      }
+
+      // Create initial pairings
+      const players = [...tournament.players];
+      console.log('Players for initial pairings:', players);
+
+      const pairings = [];
+      // Shuffle players randomly
+      for (let i = players.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [players[i], players[j]] = [players[j], players[i]];
+      }
+
+      // Create pairings
+      for (let i = 0; i < players.length; i += 2) {
+        const pairing = {
+          player1: players[i]._id,
+          player2: i + 1 < players.length ? players[i + 1]._id : null,
+          result: i + 1 >= players.length ? 'bye' : null
+        };
+        console.log('Created pairing:', pairing);
+        pairings.push(pairing);
+      }
+
+      // Create first round
+      const firstRound = {
+        roundNumber: 1,
+        pairings: pairings,
+        completed: false,
+        startTime: new Date()
+      };
+
+      tournament.rounds = [firstRound];
+      tournament.status = 'in_progress';
+      tournament.currentRound = 1;
+
+      console.log('Created first round:', firstRound);
+      await tournament.save();
+
+      res.json(tournament);
+    } catch (err) {
+      console.error('Error starting tournament:', err);
+      res.status(500).json({ error: 'Server error' });
     }
   }
 }
