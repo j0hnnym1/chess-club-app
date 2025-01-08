@@ -1,164 +1,212 @@
+const Tournament = require('../models/Tournament');
+const Player = require('../models/Player');
+const SwissPairingService = require('../services/swissPairingService');
+
 class TournamentRoundsController {
-    static async getRounds(req, res) {
-      try {
-        console.log('Getting rounds for tournament:', req.params.tournamentId);
-        const tournament = await Tournament.findById(req.params.tournamentId)
-          .populate('rounds.pairings.player1')
-          .populate('rounds.pairings.player2');
-  
-        if (!tournament) {
-          console.log('Tournament not found');
-          return res.status(404).json({ error: 'Tournament not found' });
-        }
-  
-        console.log('Returning rounds:', tournament.rounds);
-        res.json(tournament.rounds);
-      } catch (err) {
-        console.error('Error in getRounds:', err);
-        res.status(500).json({ error: 'Server error' });
+  static async getRounds(req, res) {
+    console.log('Getting rounds for tournament:', req.params.id);
+    try {
+      const tournament = await Tournament.findById(req.params.tournamentId)
+        .populate('rounds.pairings.white')
+        .populate('rounds.pairings.black');
+
+      if (!tournament) {
+        console.log('Tournament not found:', req.params.tournamentId);
+        return res.status(404).json({ error: 'Tournament not found' });
       }
+
+      console.log('Retrieved rounds:', tournament.rounds);
+      res.json(tournament.rounds);
+    } catch (err) {
+      console.error('Error fetching rounds:', err);
+      res.status(500).json({ error: 'Server error' });
     }
-  
-    static async startTournament(req, res) {
-      try {
-        console.log('Starting tournament:', req.params.tournamentId);
-        const tournament = await Tournament.findById(req.params.tournamentId).populate('players');
-  
-        if (!tournament) {
-          console.log('Tournament not found');
-          return res.status(404).json({ error: 'Tournament not found' });
-        }
-  
-        console.log('Players in tournament:', tournament.players);
-  
-        const pairings = tournament.players.map((player, index, players) => {
-          if (index % 2 === 0) {
-            return {
-              player1: players[index]._id,
-              player2: players[index + 1] ? players[index + 1]._id : null,
-              result: players[index + 1] ? null : 'bye',
-            };
-          }
-          return null;
-        }).filter(pairing => pairing !== null);
-  
-        console.log('Generated pairings for first round:', pairings);
-  
-        const newRound = {
-          roundNumber: 1,
-          pairings,
-          completed: false,
-        };
-        console.log('New Round Object:', newRound);
-  
-        tournament.rounds = [newRound];
+  }
+
+  static async generatePairings(req, res) {
+    console.log('Generating pairings for tournament:', req.params.tournamentId);
+    try {
+      const tournament = await Tournament.findById(req.params.tournamentId)
+        .populate('players')
+        .populate('rounds.pairings.white')
+        .populate('rounds.pairings.black');
+
+      if (!tournament) {
+        console.log('Tournament not found:', req.params.tournamentId);
+        return res.status(404).json({ error: 'Tournament not found' });
+      }
+
+      const roundNumber = tournament.rounds.length + 1;
+      console.log('Generating round:', roundNumber);
+
+      // Get pairings using Swiss system
+      const pairings = SwissPairingService.createPairings(tournament.players, tournament.rounds);
+      console.log('Generated pairings:', pairings);
+
+      // Create new round
+      tournament.rounds.push({
+        roundNumber,
+        pairings: pairings.map(p => ({
+          white: p.white._id,
+          black: p.black ? p.black._id : null,
+          result: p.result || null
+        })),
+        completed: false
+      });
+
+      // Update tournament status
+      if (tournament.status === 'pending') {
         tournament.status = 'in_progress';
-  
-        await tournament.save();
-        console.log('Saved tournament with rounds:', tournament.rounds);
-  
-        res.json(tournament.rounds);
-      } catch (err) {
-        console.error('Error in startTournament:', err);
-        res.status(500).json({ error: 'Server error' });
       }
-    }      
-  
-    static async addNextRound(req, res) {
-      try {
-        console.log('Adding next round for tournament:', req.params.tournamentId);
-        const tournament = await Tournament.findById(req.params.tournamentId)
-          .populate('players')
-          .populate('rounds.pairings.player1')
-          .populate('rounds.pairings.player2');
-  
-        if (!tournament) {
-          console.log('Tournament not found');
-          return res.status(404).json({ error: 'Tournament not found' });
-        }
-  
-        if (tournament.status !== 'in_progress') {
-          console.log('Tournament is not in progress');
-          return res.status(400).json({ error: 'Tournament is not in progress' });
-        }
-  
-        // Check if the current round is completed
-        const lastRound = tournament.rounds[tournament.rounds.length - 1];
-        if (lastRound && !lastRound.completed) {
-          console.log('Complete the current round before starting a new one');
-          return res.status(400).json({ error: 'Complete the current round before starting a new one' });
-        }
-  
-        // Generate pairings for the next round
-        const nextRoundNumber = tournament.rounds.length + 1;
-        const pairings = tournament.players.map((player, index, players) => {
-          if (index % 2 === 0) {
-            return {
-              player1: players[index]._id,
-              player2: players[index + 1] ? players[index + 1]._id : null,
-              result: players[index + 1] ? null : 'bye'
-            };
-          }
-          return null;
-        }).filter(pairing => pairing !== null);
-  
-        // Add the new round
-        const newRound = {
-          roundNumber: nextRoundNumber,
-          pairings,
-          completed: false,
-        };
-        tournament.rounds.push(newRound);
-  
-        await tournament.save();
-  
-        console.log('Next round added successfully');
-        res.json({ message: 'Next round added successfully', tournament });
-      } catch (err) {
-        console.error('Error in addNextRound:', err);
-        res.status(500).json({ error: 'Server error' });
-      }
+      tournament.currentRound = roundNumber;
+
+      await tournament.save();
+
+      // Populate player details before sending response
+      const populatedTournament = await Tournament.findById(tournament._id)
+        .populate('rounds.pairings.white')
+        .populate('rounds.pairings.black');
+
+      console.log('Saved new round:', populatedTournament.rounds[populatedTournament.rounds.length - 1]);
+      res.json(populatedTournament.rounds[populatedTournament.rounds.length - 1]);
+    } catch (err) {
+      console.error('Error generating pairings:', err);
+      res.status(500).json({ error: 'Server error' });
     }
+  }
+
+  static async updatePairingResult(req, res) {
+    console.log('Received request to update pairing result:', req.body);
+    try {
+      const { pairingIndex, result } = req.body;
+      const { tournamentId, roundNumber } = req.params;
   
-    static async updatePairingResult(req, res) {
-      try {
-        console.log('Updating pairing result:', req.body);
-        const { roundNumber, pairingIndex, result } = req.body;
-        const tournament = await Tournament.findById(req.params.tournamentId);
-  
-        if (!tournament) {
-          console.log('Tournament not found');
-          return res.status(404).json({ error: 'Tournament not found' });
-        }
-  
-        const round = tournament.rounds.find(r => r.roundNumber === roundNumber);
-        if (!round) {
-          console.log('Round not found');
-          return res.status(404).json({ error: 'Round not found' });
-        }
-  
-        round.pairings[pairingIndex].result = result;
-  
-        // Check if round is complete
-        const isRoundComplete = round.pairings.every(p => p.result);
-        if (isRoundComplete) {
-          round.completed = true;
-          
-          // If all rounds complete, mark tournament as finished
-          const allRoundsComplete = tournament.rounds.every(r => r.completed);
-          if (allRoundsComplete) {
-            tournament.status = 'completed';
-          }
-        }
-  
-        await tournament.save();
-        console.log('Pairing result updated successfully');
-        res.json(round);
-      } catch (err) {
-        console.error('Error in updatePairingResult:', err);
-        res.status(500).json({ error: 'Server error' });
+      // Validate tournament ID
+      const tournament = await Tournament.findById(tournamentId);
+      if (!tournament) {
+        console.warn(`Tournament not found for ID: ${tournamentId}`);
+        return res.status(404).json({ error: 'Tournament not found' });
       }
+  
+      // Validate round
+      const round = tournament.rounds.find((r) => r.roundNumber === parseInt(roundNumber));
+      if (!round) {
+        console.warn(`Round not found: ${roundNumber}`);
+        return res.status(404).json({ error: 'Round not found' });
+      }
+  
+      // Validate pairing index
+      if (pairingIndex < 0 || pairingIndex >= round.pairings.length) {
+        console.warn(`Invalid pairing index: ${pairingIndex}`);
+        return res.status(400).json({ error: 'Invalid pairing index' });
+      }
+  
+      // Update pairing result
+      round.pairings[pairingIndex].result = result;
+      round.completed = round.pairings.every((p) => p.result !== null);
+      tournament.status = tournament.rounds.every((r) => r.completed) ? 'completed' : 'in_progress';
+  
+      await tournament.save();
+  
+      console.log('Updated pairing result successfully:', round.pairings[pairingIndex]);
+      return res.json({ message: 'Pairing result updated successfully', pairing: round.pairings[pairingIndex] });
+    } catch (err) {
+      console.error('Error updating pairing result:', err);
+      return res.status(500).json({ error: 'Failed to update pairing result' });
     }
   }
   
-  module.exports = TournamentRoundsController;
+
+  static async getStandings(req, res) {
+    console.log('Getting standings for tournament:', req.params.tournamentId);
+    try {
+      const tournament = await Tournament.findById(req.params.tournamentId)
+        .populate('players')
+        .populate('rounds.pairings.white')
+        .populate('rounds.pairings.black');
+
+      if (!tournament) {
+        console.log('Tournament not found:', req.params.tournamentId);
+        return res.status(404).json({ error: 'Tournament not found' });
+      }
+
+      // Calculate standings
+      const standings = tournament.players.map(player => {
+        let score = 0;
+        let gamesPlayed = 0;
+        let wins = 0;
+        let draws = 0;
+        let losses = 0;
+        let buchholz = 0;
+        let opponents = new Set();
+
+        tournament.rounds.forEach(round => {
+          round.pairings.forEach(pairing => {
+            if (pairing.white._id.equals(player._id)) {
+              if (pairing.black) {
+                opponents.add(pairing.black._id.toString());
+              }
+              if (pairing.result === '1-0') {
+                score += 1;
+                wins++;
+              } else if (pairing.result === '0.5-0.5') {
+                score += 0.5;
+                draws++;
+              } else if (pairing.result === '0-1') {
+                losses++;
+              } else if (pairing.result === 'bye') {
+                score += 1;
+                wins++;
+              }
+              if (pairing.result) gamesPlayed++;
+            } else if (pairing.black && pairing.black._id.equals(player._id)) {
+              opponents.add(pairing.white._id.toString());
+              if (pairing.result === '0-1') {
+                score += 1;
+                wins++;
+              } else if (pairing.result === '0.5-0.5') {
+                score += 0.5;
+                draws++;
+              } else if (pairing.result === '1-0') {
+                losses++;
+              }
+              if (pairing.result) gamesPlayed++;
+            }
+          });
+        });
+
+        // Calculate Buchholz score (sum of opponents' scores)
+        buchholz = Array.from(opponents).reduce((sum, oppId) => {
+          const opponent = tournament.players.find(p => p._id.toString() === oppId);
+          return sum + SwissPairingService.calculateScore(opponent, tournament.rounds);
+        }, 0);
+
+        return {
+          player,
+          score,
+          buchholz,
+          gamesPlayed,
+          wins,
+          draws,
+          losses
+        };
+      });
+
+      // Sort standings by score (descending), then by Buchholz score
+      standings.sort((a, b) => {
+        if (b.score !== a.score) {
+          return b.score - a.score;
+        }
+        return b.buchholz - a.buchholz;
+      });
+
+      console.log('Calculated standings:', standings);
+      res.json(standings);
+    } catch (err) {
+      console.error('Error getting standings:', err);
+      res.status(500).json({ error: 'Server error' });
+    }
+  }
+}
+
+module.exports = TournamentRoundsController;

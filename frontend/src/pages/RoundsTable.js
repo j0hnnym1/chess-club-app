@@ -5,27 +5,42 @@ import axios from 'axios';
 const RoundsTable = ({ rounds = [], token, tournamentId, tournamentPlayers }) => {
   const queryClient = useQueryClient();
 
+  console.log('RoundsTable props:', { rounds, tournamentPlayers });
+
   const updateResultMutation = useMutation({
     mutationFn: async ({ roundNumber, pairingIndex, result }) => {
-      const response = await axios.put(
-        `http://localhost:3000/api/tournaments/${tournamentId}/rounds/${roundNumber}/result`,
-        { pairingIndex, result },
-        { 
-          headers: { 
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          } 
-        }
-      );
-      return response.data;
+      console.log('Updating result:', { roundNumber, pairingIndex, result });
+      try {
+        const response = await axios.put(
+          `http://localhost:3000/api/tournaments/${tournamentId}/rounds/${roundNumber}/result`,
+          { pairingIndex, result },
+          { 
+            headers: { 
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            } 
+          }
+        );
+        console.log('Update result response:', response.data);
+        return response.data;
+      } catch (error) {
+        console.error('Error updating result:', error.response?.data || error.message);
+        throw error;
+      }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries(['tournament', tournamentId]);
+    onSuccess: (data) => {
+      console.log('Result updated successfully:', data);
+      queryClient.invalidateQueries(['tournament-rounds', tournamentId]);
+    },
+    onError: (error) => {
+      console.error('Update result error:', error.response?.data || error.message);
+      alert('Failed to update result. Please try again.');
     }
   });
+  
 
   const getPlayerName = (playerId) => {
-    const player = tournamentPlayers?.find((p) => p._id === playerId || p.id === playerId);
+    const player = tournamentPlayers?.find(p => p._id === playerId || p.id === playerId);
     return player ? player.name : 'Unknown';
   };
 
@@ -66,7 +81,7 @@ const RoundsTable = ({ rounds = [], token, tournamentId, tournamentPlayers }) =>
                         <option value="1-0">White Wins</option>
                         <option value="0-1">Black Wins</option>
                         <option value="1/2-1/2">Draw</option>
-                        {pairing.player2 === null && <option value="bye">Bye</option>}
+                        {!pairing.player2 && <option value="bye">Bye</option>}
                       </select>
                     ) : (
                       <span className="font-medium">

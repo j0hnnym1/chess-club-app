@@ -1,135 +1,64 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
-import RoundsTable from './RoundsTable';
+import TournamentRounds from '../components/TournamentRounds';
+import TournamentStandings from '../components/TournamentStandings';
 
 const TournamentDetail = ({ token }) => {
   const { id } = useParams();
-  const queryClient = useQueryClient();
+  console.log('Rendering TournamentDetail for ID:', id);
 
-  const { data: tournament, isLoading: tournamentLoading } = useQuery({
+  const { data: tournament, isLoading } = useQuery({
     queryKey: ['tournament', id],
     queryFn: async () => {
-      const response = await axios.get(`http://localhost:3000/api/tournaments/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      return response.data;
-    },
-    enabled: !!id && !!token,
-  });
-
-  const { data: allPlayers } = useQuery({
-    queryKey: ['players'],
-    queryFn: async () => {
-      const response = await axios.get('http://localhost:3000/api/players', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      return response.data;
-    },
-    enabled: !!token,
-  });
-
-  const drawRoundMutation = useMutation({
-    mutationFn: async () => {
-      const response = await axios.post(
-        `http://localhost:3000/api/tournaments/${id}/rounds/next`,
-        {},
-        {
-          headers: { 
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-        }
+      const response = await axios.get(
+        `http://localhost:3000/api/tournaments/${id}`,
+        { headers: { Authorization: `Bearer ${token}` } }
       );
+      console.log('Fetched tournament:', response.data);
       return response.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries(['tournament', id]);
-    },
-    onError: (error) => {
-      console.error('Error drawing round:', error.response?.data || error.message);
-    }
+    enabled: !!id
   });
 
-  if (tournamentLoading) return <div>Loading...</div>;
-  if (!tournament) return <div>Tournament not found</div>;
-
-  const tournamentPlayers = tournament.players?.map((playerId) => {
-    const player = allPlayers?.find((p) => p._id === playerId || p.id === playerId);
-    return player || { id: playerId, name: 'Unknown Player' };
-  }) || [];
-
-  // Determine if we should show the "Draw First Round" button
-  const showDrawFirstRound = !tournament.rounds || tournament.rounds.length === 0;
-  
-  // Determine if the current round is complete
-  const currentRound = tournament.rounds && tournament.rounds[tournament.rounds.length - 1];
-  const isCurrentRoundComplete = currentRound?.pairings?.every(pairing => pairing.result);
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center p-8">
+        <div className="text-lg text-gray-600">Loading tournament details...</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">{tournament.name}</h1>
-      <div className="mb-4">
-        <p>Date: {new Date(tournament.date).toLocaleDateString()}</p>
-        <p>Type: {tournament.type}</p>
-        <p>Status: {tournament.status}</p>
-      </div>
-
-      <div className="mb-4">
-        <h2 className="text-xl font-bold mb-2">Players</h2>
-        <table className="min-w-full bg-white">
-          <thead>
-            <tr>
-              <th className="px-4 py-2 text-left">Position</th>
-              <th className="px-4 py-2 text-left">Name</th>
-              <th className="px-4 py-2 text-left">Rating</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tournamentPlayers.map((player, index) => (
-              <tr key={player.id || player._id}>
-                <td className="border px-4 py-2">{index + 1}</td>
-                <td className="border px-4 py-2">{player.name}</td>
-                <td className="border px-4 py-2">{player.rating || '-'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div>
-        <h2 className="text-xl font-bold mb-2">Rounds</h2>
+    <div className="max-w-6xl mx-auto p-6">
+      <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
+        <h1 className="text-3xl font-bold mb-4">{tournament?.name}</h1>
         
-        {showDrawFirstRound ? (
-          <button
-            onClick={() => drawRoundMutation.mutate()}
-            className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded mb-4 disabled:bg-gray-400"
-            disabled={drawRoundMutation.isLoading}
-          >
-            {drawRoundMutation.isLoading ? 'Drawing...' : 'Draw First Round'}
-          </button>
-        ) : (
-          <button
-            onClick={() => drawRoundMutation.mutate()}
-            className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded mb-4 disabled:bg-gray-400"
-            disabled={!isCurrentRoundComplete || drawRoundMutation.isLoading}
-          >
-            {drawRoundMutation.isLoading ? 'Drawing...' : 'Draw Next Round'}
-          </button>
-        )}
-        
-        {tournament.rounds && tournament.rounds.length > 0 ? (
-          <RoundsTable
-            rounds={tournament.rounds}
-            tournamentPlayers={tournamentPlayers}
-            token={token}
-            tournamentId={id}
-            allPlayers={allPlayers}
-          />
-        ) : (
-          <div>No rounds available</div>
-        )}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div className="bg-gray-50 p-4 rounded">
+            <h2 className="text-sm font-semibold text-gray-600">Date</h2>
+            <p className="text-lg">
+              {tournament?.date ? new Date(tournament.date).toLocaleDateString() : 'Not set'}
+            </p>
+          </div>
+          <div className="bg-gray-50 p-4 rounded">
+            <h2 className="text-sm font-semibold text-gray-600">Type</h2>
+            <p className="text-lg">{tournament?.type || 'Not specified'}</p>
+          </div>
+          <div className="bg-gray-50 p-4 rounded">
+            <h2 className="text-sm font-semibold text-gray-600">Status</h2>
+            <p className="text-lg">{tournament?.status || 'Pending'}</p>
+          </div>
+        </div>
+
+        <div className="mb-8">
+          <TournamentStandings tournamentId={id} token={token} />
+        </div>
+
+        <div>
+          <TournamentRounds tournamentId={id} token={token} />
+        </div>
       </div>
     </div>
   );

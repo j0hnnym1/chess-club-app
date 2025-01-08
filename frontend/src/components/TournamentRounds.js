@@ -3,23 +3,19 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 
 const TournamentRounds = ({ tournamentId, token }) => {
-  console.log('TournamentRounds - Props:', { tournamentId, token });
   const queryClient = useQueryClient();
+  console.log('Rendering TournamentRounds for tournament:', tournamentId);
 
-  const { data: rounds, isLoading, error } = useQuery({
+  const { data: rounds, isLoading } = useQuery({
     queryKey: ['tournament-rounds', tournamentId],
     queryFn: async () => {
-      console.log('Fetching rounds for tournament:', tournamentId);
       const response = await axios.get(
         `http://localhost:3000/api/tournaments/${tournamentId}/rounds`,
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
-      console.log('Rounds response:', response.data);
+      console.log('Fetched rounds:', response.data);
       return response.data;
-    },
-    enabled: !!tournamentId && !!token
+    }
   });
 
   const startTournamentMutation = useMutation({
@@ -28,106 +24,115 @@ const TournamentRounds = ({ tournamentId, token }) => {
       return axios.post(
         `http://localhost:3000/api/tournaments/${tournamentId}/start`,
         {},
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
     },
     onSuccess: () => {
-      console.log('Tournament started successfully');
       queryClient.invalidateQueries(['tournament-rounds', tournamentId]);
+    }
+  });
+
+  const nextRoundMutation = useMutation({
+    mutationFn: async () => {
+      console.log('Creating next round for tournament:', tournamentId);
+      return axios.post(
+        `http://localhost:3000/api/tournaments/${tournamentId}/rounds/next`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
     },
-    onError: (err) => {
-      console.error('Error starting tournament:', err);
+    onSuccess: () => {
+      queryClient.invalidateQueries(['tournament-rounds', tournamentId]);
     }
   });
 
   const updateResultMutation = useMutation({
     mutationFn: async ({ roundNumber, pairingIndex, result }) => {
-      console.log('Update mutation payload:', { tournamentId, roundNumber, pairingIndex, result }); // Debug log
-      if (!tournamentId) {
-        throw new Error('Tournament ID is missing');
-      }
+      console.log('Updating result:', { roundNumber, pairingIndex, result });
       return axios.put(
         `http://localhost:3000/api/tournaments/${tournamentId}/rounds/${roundNumber}/result`,
         { pairingIndex, result },
-        {
-          headers: { 
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
     },
     onSuccess: () => {
-      console.log('Result updated successfully');
       queryClient.invalidateQueries(['tournament-rounds', tournamentId]);
-    },
-    onError: (error) => {
-      console.error('Error updating result:', error);
-      console.error('Error response:', error.response?.data); // Debug log
     }
-});
+  });
 
-  if (isLoading) return <div>Loading rounds...</div>;
-  if (error) return <div>Error: {error.message}</div>;
+  const handleResultChange = (roundNumber, pairingIndex, result) => {
+    updateResultMutation.mutate({ roundNumber, pairingIndex, result });
+  };
+
+  if (isLoading) {
+    return <div className="p-4">Loading rounds...</div>;
+  }
+
+  if (!rounds || rounds.length === 0) {
+    return (
+      <div className="p-4">
+        <button
+          onClick={() => startTournamentMutation.mutate()}
+          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+        >
+          Start Tournament
+        </button>
+      </div>
+    );
+  }
+
+  const currentRound = rounds[rounds.length - 1];
+  const canStartNextRound = currentRound.completed;
 
   return (
-    <div className="mt-8">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold">Tournament Rounds</h2>
-        {(!rounds || rounds.length === 0) && (
-          <button
-            onClick={() => startTournamentMutation.mutate()}
-            className="bg-blue-500 text-white px-4 py-2 rounded"
-            disabled={startTournamentMutation.isLoading}
-          >
-            {startTournamentMutation.isLoading ? 'Starting...' : 'Start Tournament'}
-          </button>
-        )}
-      </div>
-
-      {rounds?.map((round) => (
-        <div key={round.roundNumber} className="mb-6 bg-white p-4 rounded shadow">
-          <h3 className="text-xl font-semibold mb-4">Round {round.roundNumber}</h3>
+    <div className="p-4">
+      <h2 className="text-2xl font-bold mb-4">Tournament Rounds</h2>
+      
+      {rounds.map((round) => (
+        <div key={round.roundNumber} className="mb-8">
+          <h3 className="text-xl font-semibold mb-2">
+            Round {round.roundNumber}
+            {round.completed && <span className="text-green-500 ml-2">(Completed)</span>}
+          </h3>
+          
           <div className="space-y-4">
-            {round.pairings.map((pairing, pairingIndex) => (
-              <div key={pairingIndex} className="flex justify-between items-center border p-4 rounded">
-                <div>
-                  {pairing.player1?.name} vs {pairing.player2?.name || 'BYE'}
-                </div>
-                {!round.completed && (
+            {round.pairings.map((pairing, index) => (
+              <div key={index} className="flex items-center space-x-4 p-2 bg-gray-50 rounded">
+                <span className="font-medium">{pairing.white?.name}</span>
+                <span>vs</span>
+                <span className="font-medium">
+                  {pairing.black ? pairing.black.name : 'BYE'}
+                </span>
+                
+                {!pairing.black ? (
+                  <span className="ml-4 text-gray-500">Bye Round</span>
+                ) : (
                   <select
                     value={pairing.result || ''}
-                    onChange={(e) =>
-                      updateResultMutation.mutate({
-                        roundNumber: round.roundNumber,
-                        pairingIndex,
-                        result: e.target.value || null
-                      })
-                    }
-                    className="border rounded p-2"
+                    onChange={(e) => handleResultChange(round.roundNumber, index, e.target.value)}
+                    disabled={round.completed}
+                    className="ml-4 border rounded px-2 py-1"
                   >
                     <option value="">Select Result</option>
-                    <option value="player1">Player 1 Wins</option>
-                    <option value="player2">Player 2 Wins</option>
-                    <option value="draw">Draw</option>
-                    {!pairing.player2 && <option value="bye">Bye</option>}
+                    <option value="1-0">White Wins</option>
+                    <option value="0-1">Black Wins</option>
+                    <option value="0.5-0.5">Draw</option>
                   </select>
-                )}
-                {round.completed && (
-                  <div className="font-semibold">
-                    {pairing.result === 'player1' && `${pairing.player1?.name} Won`}
-                    {pairing.result === 'player2' && `${pairing.player2?.name} Won`}
-                    {pairing.result === 'draw' && 'Draw'}
-                    {pairing.result === 'bye' && 'Bye'}
-                  </div>
                 )}
               </div>
             ))}
           </div>
         </div>
       ))}
+
+      {canStartNextRound && (
+        <button
+          onClick={() => nextRoundMutation.mutate()}
+          className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+        >
+          Start Next Round
+        </button>
+      )}
     </div>
   );
 };
