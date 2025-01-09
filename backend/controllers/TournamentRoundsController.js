@@ -39,39 +39,50 @@ class TournamentRoundsController {
       const roundNumber = tournament.rounds.length + 1;
       console.log('Generating round:', roundNumber);
 
+      console.log('Creating pairings for players:', tournament.players);
+      console.log('Round history:', tournament.rounds);
+
       // Get pairings using Swiss system
-      const pairings = SwissPairingService.createPairings(tournament.players, tournament.rounds);
-      console.log('Generated pairings:', pairings);
+      const pairings = SwissPairingService.createPairings(tournament.players, tournament.rounds, roundNumber);
+      console.log('Generated raw pairings:', pairings);
+
+      // Convert pairings to match schema format
+      const formattedPairings = pairings.map(p => ({
+        white: p.white,
+        black: p.black,
+        result: null
+      }));
+
+      console.log('Formatted pairings:', formattedPairings);
 
       // Create new round
-      tournament.rounds.push({
+      const newRound = {
         roundNumber,
-        pairings: pairings.map(p => ({
-          white: p.white._id,
-          black: p.black ? p.black._id : null,
-          result: p.result || null
-        })),
+        pairings: formattedPairings,
         completed: false
-      });
+      };
+
+      console.log('New round object:', newRound);
+      tournament.rounds.push(newRound);
 
       // Update tournament status
-      if (tournament.status === 'pending') {
-        tournament.status = 'in_progress';
-      }
+      tournament.status = 'in_progress';
       tournament.currentRound = roundNumber;
 
       await tournament.save();
+      console.log('Tournament saved with new round');
 
       // Populate player details before sending response
       const populatedTournament = await Tournament.findById(tournament._id)
         .populate('rounds.pairings.white')
         .populate('rounds.pairings.black');
 
-      console.log('Saved new round:', populatedTournament.rounds[populatedTournament.rounds.length - 1]);
-      res.json(populatedTournament.rounds[populatedTournament.rounds.length - 1]);
+      const latestRound = populatedTournament.rounds[populatedTournament.rounds.length - 1];
+      console.log('Sending response with round:', latestRound);
+      res.json(latestRound);
     } catch (err) {
       console.error('Error generating pairings:', err);
-      res.status(500).json({ error: 'Server error' });
+      res.status(500).json({ error: err.message || 'Server error' });
     }
   }
 
@@ -81,27 +92,23 @@ class TournamentRoundsController {
       const { pairingIndex, result } = req.body;
       const { tournamentId, roundNumber } = req.params;
   
-      // Validate tournament ID
       const tournament = await Tournament.findById(tournamentId);
       if (!tournament) {
         console.warn(`Tournament not found for ID: ${tournamentId}`);
         return res.status(404).json({ error: 'Tournament not found' });
       }
   
-      // Validate round
       const round = tournament.rounds.find((r) => r.roundNumber === parseInt(roundNumber));
       if (!round) {
         console.warn(`Round not found: ${roundNumber}`);
         return res.status(404).json({ error: 'Round not found' });
       }
   
-      // Validate pairing index
       if (pairingIndex < 0 || pairingIndex >= round.pairings.length) {
         console.warn(`Invalid pairing index: ${pairingIndex}`);
         return res.status(400).json({ error: 'Invalid pairing index' });
       }
   
-      // Update pairing result
       round.pairings[pairingIndex].result = result;
       round.completed = round.pairings.every((p) => p.result !== null);
       tournament.status = tournament.rounds.every((r) => r.completed) ? 'completed' : 'in_progress';
@@ -115,7 +122,6 @@ class TournamentRoundsController {
       return res.status(500).json({ error: 'Failed to update pairing result' });
     }
   }
-  
 
   static async getStandings(req, res) {
     console.log('Getting standings for tournament:', req.params.tournamentId);
@@ -175,12 +181,6 @@ class TournamentRoundsController {
           });
         });
 
-        // Calculate Buchholz score (sum of opponents' scores)
-        buchholz = Array.from(opponents).reduce((sum, oppId) => {
-          const opponent = tournament.players.find(p => p._id.toString() === oppId);
-          return sum + SwissPairingService.calculateScore(opponent, tournament.rounds);
-        }, 0);
-
         return {
           player,
           score,
@@ -192,13 +192,7 @@ class TournamentRoundsController {
         };
       });
 
-      // Sort standings by score (descending), then by Buchholz score
-      standings.sort((a, b) => {
-        if (b.score !== a.score) {
-          return b.score - a.score;
-        }
-        return b.buchholz - a.buchholz;
-      });
+      standings.sort((a, b) => b.score - a.score || b.buchholz - a.buchholz);
 
       console.log('Calculated standings:', standings);
       res.json(standings);

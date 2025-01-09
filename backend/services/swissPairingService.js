@@ -1,163 +1,220 @@
 class SwissPairingService {
-  static createPairings(players, roundHistory = []) {
-    console.log('Creating pairings for players:', players);
-    console.log('Round history:', roundHistory);
+  static createPairings(players, roundHistory = [], round) {
+    console.log('SwissPairingService createPairings called with:', {
+      numPlayers: players.length,
+      round,
+      historyLength: roundHistory?.length
+    });
 
-    // Calculate the maximum number of rounds based on the number of players
-    const maxRounds = this.calculateMaxRounds(players.length);
-    if (roundHistory.length >= maxRounds) {
-      console.log(`Maximum number of rounds (${maxRounds}) reached. No more pairings.`);
+    // Add validation to prevent infinite rounds
+    const maxRounds = players.length - 1; // Standard Swiss system allows n-1 rounds
+    if (round > maxRounds) {
+      console.log(`Tournament completed: Maximum rounds (${maxRounds}) reached`);
       return [];
     }
 
-    // Calculate scores and color imbalance for each player
-    players.forEach((player) => {
-      player.score = this.calculateScore(player, roundHistory);
-      player.colorImbalance = this.calculateColorImbalance(player, roundHistory);
+    // Map players and add scores
+    let playerArray = players.map(player => ({
+      name: player.name,
+      rating: player.rating || 1500,
+      id: player._id,
+      colorHistory: this.calculateColorHistory(player._id, roundHistory),
+      score: this.calculatePlayerScore(player, roundHistory)
+    }));
+
+    console.log('Player array with scores:', playerArray.map(p => ({
+      name: p.name,
+      rating: p.rating,
+      score: p.score,
+      colors: p.colorHistory
+    })));
+
+    // Sort players by score then rating
+    playerArray.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return b.rating - a.rating;
     });
 
-    // Sort players by score, then color imbalance, then rating
-    const sortedPlayers = [...players].sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score; // Higher score first
-      if (a.colorImbalance !== b.colorImbalance) return a.colorImbalance - b.colorImbalance; // Balance colors
-      return b.rating - a.rating; // Higher rating as fallback
-    });
+    console.log('Sorted players:', playerArray.map(p => p.name));
 
-    console.log('Sorted players:', sortedPlayers);
+    // Generate weighted edges
+    let edges = [];
+    for (let i = 0; i < playerArray.length - 1; i++) {
+      for (let j = i + 1; j < playerArray.length; j++) {
+        const p1 = playerArray[i];
+        const p2 = playerArray[j];
+        
+        // Base weight
+        let weight = 100;
+        let debugWeights = {
+          base: 100,
+          scoreBonus: 0,
+          ratingPenalty: 0,
+          historyPenalty: 0,
+          colorPenalty: 0
+        };
 
+        // Score matching bonus
+        if (p1.score === p2.score) {
+          weight += 50;
+          debugWeights.scoreBonus = 50;
+        } else {
+          weight -= 10 * Math.abs(p1.score - p2.score);
+          debugWeights.scoreBonus = -10 * Math.abs(p1.score - p2.score);
+        }
+
+        // Rating difference penalty
+        const ratingPenalty = Math.abs(p1.rating - p2.rating) / 100;
+        weight -= ratingPenalty;
+        debugWeights.ratingPenalty = -ratingPenalty;
+
+        // History penalty
+        if (this.havePlayed(p1.id, p2.id, roundHistory)) {
+          weight -= 1000;
+          debugWeights.historyPenalty = -1000;
+        }
+
+        // Color balance penalty
+        const p1LastColors = p1.colorHistory.slice(-2);
+        const p2LastColors = p2.colorHistory.slice(-2);
+        if (p1LastColors.length >= 2 && p1LastColors.every(c => c === 'W')) {
+          weight -= 50;
+          debugWeights.colorPenalty -= 50;
+        }
+        if (p2LastColors.length >= 2 && p2LastColors.every(c => c === 'B')) {
+          weight -= 50;
+          debugWeights.colorPenalty -= 50;
+        }
+
+        console.log(`Edge ${p1.name} vs ${p2.name}:`, debugWeights, `Final weight: ${weight}`);
+        edges.push([i, j, Math.max(weight, 0)]); // Ensure non-negative weight
+      }
+    }
+
+    edges.sort((a, b) => b[2] - a[2]);
+    console.log('Sorted edges:', edges);
+    
+    // Create pairings
     const pairings = [];
     const paired = new Set();
+    
+    // Pair players based on sorted edges
+    for (let edge of edges) {
+      const [i, j, weight] = edge;
+      if (!paired.has(i) && !paired.has(j)) {
+        const p1 = playerArray[i];
+        const p2 = playerArray[j];
+        const shouldSwap = this.shouldSwapColors(p1, p2);
+        
+        const pairing = {
+          white: shouldSwap ? p2.id : p1.id,
+          black: shouldSwap ? p1.id : p2.id,
+          result: null
+        };
 
-    // Handle odd number of players by assigning a bye
-    if (sortedPlayers.length % 2 !== 0) {
-      const byePlayer = this.findByePlayer(sortedPlayers, paired, roundHistory);
-      if (byePlayer) {
-        pairings.push({ white: byePlayer, black: null, result: 'bye' });
-        paired.add(byePlayer._id.toString());
+        console.log(`Created pairing: ${shouldSwap ? p2.name : p1.name}(W) vs ${shouldSwap ? p1.name : p2.name}(B)`);
+        pairings.push(pairing);
+        paired.add(i);
+        paired.add(j);
       }
     }
 
-    // Pair players
-    const availablePlayers = sortedPlayers.filter((player) => !paired.has(player._id.toString()));
-    while (availablePlayers.length > 1) {
-      const white = availablePlayers[0];
-      let black = null;
-
-      // Find a valid opponent who hasn't played the white player
-      for (let i = 1; i < availablePlayers.length; i++) {
-        const potentialBlack = availablePlayers[i];
-        if (!this.havePlayed(white, potentialBlack, roundHistory)) {
-          black = potentialBlack;
-          break;
-        }
-      }
-
-      // If no opponent is found, pair with the next available player
-      if (!black && availablePlayers.length > 1) {
-        black = availablePlayers[1];
-      }
-
-      if (white && black) {
-        const [finalWhite, finalBlack] = this.assignColors(white, black);
-        pairings.push({ white: finalWhite, black: finalBlack, result: null });
-        paired.add(finalWhite._id.toString());
-        paired.add(finalBlack._id.toString());
-        availablePlayers.splice(availablePlayers.indexOf(black), 1);
-        availablePlayers.splice(0, 1);
-      } else {
-        break;
+    // Handle unpaired players (for odd number of players)
+    for (let i = 0; i < playerArray.length; i++) {
+      if (!paired.has(i)) {
+        pairings.push({
+          white: playerArray[i].id,
+          black: null,
+          result: null
+        });
+        console.log(`Bye given to: ${playerArray[i].name}`);
       }
     }
 
-    console.log('Generated pairings:', pairings);
+    console.log('Final pairings:', pairings);
     return pairings;
   }
 
-  static calculateMaxRounds(playerCount) {
-    if (playerCount <= 1) return 0;
-    if (playerCount <= 2) return 1;
-    if (playerCount <= 4) return 2;
-    if (playerCount <= 8) return 3;
-    if (playerCount <= 16) return 4;
-    if (playerCount <= 32) return 5;
-    if (playerCount <= 64) return 6;
-    if (playerCount <= 128) return 7;
-    if (playerCount <= 256) return 8;
-    return 9;
-  }
-
-  static calculateColorImbalance(player, roundHistory) {
-    let whiteCount = 0;
-    let blackCount = 0;
-    roundHistory.forEach((round) => {
-      round.pairings.forEach((pairing) => {
-        if (pairing.white._id.toString() === player._id.toString()) whiteCount++;
-        if (pairing.black && pairing.black._id.toString() === player._id.toString()) blackCount++;
-      });
-    });
-    return whiteCount - blackCount;
-  }
-
-  static calculateScore(player, roundHistory) {
+  static calculatePlayerScore(player, roundHistory) {
     let score = 0;
-    roundHistory.forEach((round) => {
-      round.pairings.forEach((pairing) => {
-        if (pairing.white._id.toString() === player._id.toString() && pairing.result === '1-0') {
-          score += 1;
-        } else if (pairing.black?._id.toString() === player._id.toString() && pairing.result === '0-1') {
-          score += 1;
-        } else if (
-          (pairing.white._id.toString() === player._id.toString() ||
-            pairing.black?._id.toString() === player._id.toString()) &&
-          pairing.result === '0.5-0.5'
-        ) {
-          score += 0.5;
+    if (!roundHistory) return score;
+    
+    roundHistory.forEach(round => {
+      if (!round.pairings) return;
+      
+      round.pairings.forEach(pairing => {
+        if (!pairing.result) return;
+        
+        const isWhite = pairing.white?.equals(player._id);
+        const isBlack = pairing.black?.equals(player._id);
+        
+        if (!isWhite && !isBlack) return;
+
+        if (isWhite) {
+          if (pairing.result === '1-0') score += 1;
+          else if (pairing.result === '0.5-0.5') score += 0.5;
+        } else if (isBlack) {
+          if (pairing.result === '0-1') score += 1;
+          else if (pairing.result === '0.5-0.5') score += 0.5;
         }
       });
     });
+
     return score;
   }
 
-  static assignColors(playerA, playerB) {
-    if (playerA.colorImbalance > playerB.colorImbalance) {
-      return [playerB, playerA];
-    } else if (playerA.colorImbalance < playerB.colorImbalance) {
-      return [playerA, playerB];
-    } else {
-      // If imbalances are equal, randomly assign colors
-      return Math.random() > 0.5 ? [playerA, playerB] : [playerB, playerA];
+  static calculateColorHistory(playerId, roundHistory) {
+    const colors = [];
+    if (!roundHistory) return colors;
+
+    roundHistory.forEach(round => {
+      if (!round.pairings) return;
+
+      round.pairings.forEach(pairing => {
+        if (pairing.white?.equals(playerId)) colors.push('W');
+        else if (pairing.black?.equals(playerId)) colors.push('B');
+      });
+    });
+
+    return colors;
+  }
+
+  static shouldSwapColors(player1, player2) {
+    const p1Colors = player1.colorHistory;
+    const p2Colors = player2.colorHistory;
+
+    // If one player has played more whites, they should play black
+    const p1Whites = p1Colors.filter(c => c === 'W').length;
+    const p2Whites = p2Colors.filter(c => c === 'W').length;
+
+    if (p1Whites > p2Whites) return true;
+    if (p2Whites > p1Whites) return false;
+
+    // If equal whites, check last played color
+    if (p1Colors.length > 0 && p2Colors.length > 0) {
+      const p1Last = p1Colors[p1Colors.length - 1];
+      const p2Last = p2Colors[p2Colors.length - 1];
+      if (p1Last === 'W' && p2Last === 'B') return true;
+      if (p1Last === 'B' && p2Last === 'W') return false;
     }
+
+    // If still tied, assign randomly
+    return Math.random() < 0.5;
   }
 
-  static havePlayed(player1, player2, roundHistory) {
-    return roundHistory.some((round) =>
-      round.pairings.some(
-        (pairing) =>
-          (pairing.white._id.toString() === player1._id.toString() &&
-            pairing.black?._id.toString() === player2._id.toString()) ||
-          (pairing.white._id.toString() === player2._id.toString() &&
-            pairing.black?._id.toString() === player1._id.toString())
-      )
-    );
-  }
-
-  static findByePlayer(players, paired, roundHistory) {
-    for (let i = players.length - 1; i >= 0; i--) {
-      const player = players[i];
-      if (!paired.has(player._id.toString()) && !this.hasHadBye(player, roundHistory)) {
-        return player;
-      }
-    }
-    return null;
-  }
-
-  static hasHadBye(player, roundHistory) {
-    return roundHistory.some((round) =>
-      round.pairings.some(
-        (pairing) =>
-          pairing.white._id.toString() === player._id.toString() && pairing.result === 'bye'
-      )
-    );
+  static havePlayed(player1Id, player2Id, roundHistory) {
+    if (!roundHistory) return false;
+    
+    return roundHistory.some(round => {
+      if (!round.pairings) return false;
+      
+      return round.pairings.some(pairing => {
+        if (!pairing.black) return false;
+        const pair1 = pairing.white?.equals(player1Id) && pairing.black?.equals(player2Id);
+        const pair2 = pairing.white?.equals(player2Id) && pairing.black?.equals(player1Id);
+        return pair1 || pair2;
+      });
+    });
   }
 }
 
