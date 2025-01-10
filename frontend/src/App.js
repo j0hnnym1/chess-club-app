@@ -3,8 +3,8 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Login from './pages/Login';
 import Players from './pages/Players';
 import Tournaments from './pages/Tournaments';
-import TournamentDetail from './pages/TournamentDetail';
-import TournamentForm from './pages/TournamentForm';
+import TournamentDetail from './components/TournamentDetail';
+import TournamentForm from './components/TournamentForm';
 import Layout from './components/Layout';
 import TournamentEditWrapper from './components/TournamentEditWrapper';
 
@@ -12,14 +12,12 @@ const App = () => {
   const [token, setToken] = useState(localStorage.getItem('token') || '');
   const [selectedTournament, setSelectedTournament] = useState(null);
 
-  // Logout handler
   const logout = () => {
     localStorage.removeItem('token');
     setToken('');
     window.location.href = '/';
   };
 
-  // Fetch a single tournament for editing
   const fetchTournamentById = async (id) => {
     try {
       const response = await fetch(`http://localhost:3000/api/tournaments/${id}`, {
@@ -40,7 +38,6 @@ const App = () => {
     }
   };
 
-  // Handle tournament creation
   const handleCreate = async (tournamentData) => {
     try {
       const response = await fetch('http://localhost:3000/api/tournaments', {
@@ -66,7 +63,6 @@ const App = () => {
     }
   };
 
-  // Handle tournament update
   const handleUpdate = async (id, updatedData) => {
     if (!id) {
       console.error('Error: Tournament ID is undefined.');
@@ -115,7 +111,7 @@ const App = () => {
               element={
                 <TournamentForm
                   token={token}
-                  onSubmit={handleCreate} // Pass handleCreate for creation
+                  onSubmit={handleCreate}
                 />
               }
             />

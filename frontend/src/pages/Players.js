@@ -1,104 +1,117 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  Container,
+  Box,
+  Typography,
+  CircularProgress,
+  Alert,
+} from '@mui/material';
 import { fetchPlayers, createPlayer, deletePlayer, updatePlayer } from '../services/playerService';
+import PlayerForm from '../components/PlayerForm';
+import PlayerList from '../components/PlayerList';
 
 const Players = ({ token }) => {
   const queryClient = useQueryClient();
-  const [formData, setFormData] = useState({ name: '', age: '', role: 'Player', rating: 1500 });
+  const [formData, setFormData] = useState({
+    name: '',
+    age: '',
+    role: 'Player',
+    rating: 1500
+  });
 
-  // Fetch all players
   const { data: players, error, isLoading } = useQuery({
     queryKey: ['players'],
     queryFn: () => fetchPlayers(token),
   });
 
-  // Create player mutation
   const createMutation = useMutation({
-    mutationFn: (newPlayer) => createPlayer(token, newPlayer),
-    onSuccess: () => {
-      queryClient.invalidateQueries(['players']);
+    mutationFn: (newPlayer) => {
+      console.log('Creating player:', newPlayer);
+      return createPlayer(token, newPlayer);
     },
+    onSuccess: (data) => {
+      console.log('Player created successfully:', data);
+      queryClient.invalidateQueries(['players']);
+      setFormData({ name: '', age: '', role: 'Player', rating: 1500 });
+    },
+    onError: (error) => {
+      console.error('Error creating player:', error);
+    }
   });
 
-  // Delete player mutation
   const deleteMutation = useMutation({
-    mutationFn: (playerId) => deletePlayer(token, playerId),
-    onSuccess: () => {
+    mutationFn: (playerId) => {
+      console.log('Deleting player:', playerId);
+      return deletePlayer(token, playerId);
+    },
+    onSuccess: (data) => {
+      console.log('Player deleted successfully:', data);
       queryClient.invalidateQueries(['players']);
     },
+    onError: (error) => {
+      console.error('Error deleting player:', error);
+    }
   });
 
-  // Update player mutation
   const updateMutation = useMutation({
-    mutationFn: ({ playerId, playerData }) => updatePlayer(token, playerId, playerData),
-    onSuccess: () => {
-      queryClient.invalidateQueries(['players']);
+    mutationFn: ({ playerId, playerData }) => {
+      console.log('Updating player:', { playerId, playerData });
+      return updatePlayer(token, playerId, playerData);
     },
+    onSuccess: (data) => {
+      console.log('Player updated successfully:', data);
+      queryClient.invalidateQueries(['players']);
+    }
   });
 
-  // Handle form submission
   const handleCreate = (e) => {
     e.preventDefault();
+    console.log('Form submitted with data:', formData);
     createMutation.mutate(formData);
-    setFormData({ name: '', age: '', role: 'Player', rating: 1500 });
   };
 
-  if (isLoading) return <div>Loading players...</div>;
-  if (error) return <div>Error fetching players: {error.message}</div>;
+  if (isLoading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="50vh">
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Container maxWidth="lg" sx={{ mt: 4 }}>
+        <Alert severity="error">
+          Error fetching players: {error.message}
+        </Alert>
+      </Container>
+    );
+  }
 
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Players</h1>
-      <form onSubmit={handleCreate} className="mb-4">
-        <input
-          type="text"
-          placeholder="Name"
-          value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          required
-          className="border p-2 mr-2"
-        />
-        <input
-          type="number"
-          placeholder="Age"
-          value={formData.age}
-          onChange={(e) => setFormData({ ...formData, age: e.target.value })}
-          required
-          className="border p-2 mr-2"
-        />
-        <select
-          value={formData.role}
-          onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-          className="border p-2 mr-2"
-        >
-          <option value="Player">Player</option>
-          <option value="Teacher">Teacher</option>
-        </select>
-        <input
-          type="number"
-          placeholder="Rating"
-          value={formData.rating}
-          onChange={(e) => setFormData({ ...formData, rating: e.target.value })}
-          required
-          className="border p-2 mr-2"
-        />
-        <button type="submit" className="bg-blue-500 text-white px-4 py-2">Add Player</button>
-      </form>
+    <Container maxWidth="lg" sx={{ mt: 4 }}>
+      <Typography variant="h4" component="h1" gutterBottom>
+        Players
+      </Typography>
 
-      <ul className="list-disc list-inside">
-        {players.map((player) => (
-          <li key={player.id}>
-            {player.name} (Age: {player.age}, Role: {player.role}, Rating: {player.rating})
-            <button
-              onClick={() => deleteMutation.mutate(player.id)}
-              className="text-red-500 ml-4"
-            >
-              Delete
-            </button>
-          </li>
-        ))}
-      </ul>
-    </div>
+      {createMutation.isError && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          Error creating player: {createMutation.error.message}
+        </Alert>
+      )}
+
+      <PlayerForm
+        formData={formData}
+        onChange={setFormData}
+        onSubmit={handleCreate}
+      />
+
+      <PlayerList
+        players={players}
+        onDelete={(id) => deleteMutation.mutate(id)}
+      />
+    </Container>
   );
 };
 

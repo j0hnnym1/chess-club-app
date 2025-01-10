@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import TournamentForm from './../pages/TournamentForm'; // Adjust the path if necessary
+import TournamentForm from './TournamentForm';
 
 const TournamentEditWrapper = ({
   token,
@@ -7,7 +7,7 @@ const TournamentEditWrapper = ({
   selectedTournament,
   handleUpdate,
 }) => {
-  const tournamentId = window.location.pathname.split('/')[2]; // Extract the ID from the URL
+  const tournamentId = window.location.pathname.split('/')[2];
 
   useEffect(() => {
     if (!selectedTournament || selectedTournament._id !== tournamentId) {

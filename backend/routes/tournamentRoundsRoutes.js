@@ -6,7 +6,7 @@ const authMiddleware = require('../middleware/authMiddleware');
 // Tournament Rounds Routes
 router.get('/:tournamentId/rounds', authMiddleware, async (req, res) => {
   console.log('GET rounds request for tournament:', req.params.tournamentId);
-  req.params.id = req.params.tournamentId; // Ensure controller has correct parameter
+  req.params.id = req.params.tournamentId;
   await TournamentRoundsController.getRounds(req, res);
 });
 
@@ -22,10 +22,9 @@ router.post('/:tournamentId/rounds/next', authMiddleware, async (req, res) => {
   await TournamentRoundsController.generatePairings(req, res);
 });
 
-router.put('/:tournamentId/rounds/:roundNumber/result', authMiddleware, async (req, res) => {
+router.put('/:tournamentId/rounds/pairing', authMiddleware, async (req, res) => {
   console.log('PUT round result request:', {
     tournamentId: req.params.tournamentId,
-    roundNumber: req.params.roundNumber,
     body: req.body
   });
   req.params.id = req.params.tournamentId;

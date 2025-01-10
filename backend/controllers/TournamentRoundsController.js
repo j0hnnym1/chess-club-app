@@ -4,7 +4,7 @@ const SwissPairingService = require('../services/swissPairingService');
 
 class TournamentRoundsController {
   static async getRounds(req, res) {
-    console.log('Getting rounds for tournament:', req.params.id);
+    console.log('Getting rounds for tournament:', req.params.tournamentId);
     try {
       const tournament = await Tournament.findById(req.params.tournamentId)
         .populate('rounds.pairings.white')
@@ -27,13 +27,18 @@ class TournamentRoundsController {
     console.log('Generating pairings for tournament:', req.params.tournamentId);
     try {
       const tournament = await Tournament.findById(req.params.tournamentId)
-        .populate('players')
-        .populate('rounds.pairings.white')
-        .populate('rounds.pairings.black');
+        .populate('players');
 
       if (!tournament) {
         console.log('Tournament not found:', req.params.tournamentId);
         return res.status(404).json({ error: 'Tournament not found' });
+      }
+
+      // Check if max rounds reached (all players should play each other)
+      const maxRounds = tournament.players.length - 1;
+      if (tournament.rounds.length >= maxRounds) {
+        console.log('Tournament complete - max rounds reached:', tournament.rounds.length);
+        return res.status(400).json({ message: 'Tournament complete' });
       }
 
       const roundNumber = tournament.rounds.length + 1;
@@ -42,37 +47,28 @@ class TournamentRoundsController {
       console.log('Creating pairings for players:', tournament.players);
       console.log('Round history:', tournament.rounds);
 
-      // Get pairings using Swiss system
       const pairings = SwissPairingService.createPairings(tournament.players, tournament.rounds, roundNumber);
       console.log('Generated raw pairings:', pairings);
 
-      // Convert pairings to match schema format
       const formattedPairings = pairings.map(p => ({
         white: p.white,
         black: p.black,
         result: null
       }));
 
-      console.log('Formatted pairings:', formattedPairings);
-
-      // Create new round
       const newRound = {
         roundNumber,
         pairings: formattedPairings,
         completed: false
       };
 
-      console.log('New round object:', newRound);
       tournament.rounds.push(newRound);
-
-      // Update tournament status
       tournament.status = 'in_progress';
       tournament.currentRound = roundNumber;
 
       await tournament.save();
       console.log('Tournament saved with new round');
 
-      // Populate player details before sending response
       const populatedTournament = await Tournament.findById(tournament._id)
         .populate('rounds.pairings.white')
         .populate('rounds.pairings.black');
@@ -87,36 +83,56 @@ class TournamentRoundsController {
   }
 
   static async updatePairingResult(req, res) {
-    console.log('Received request to update pairing result:', req.body);
+    console.log('Received request to update pairing result:', {
+      body: req.body,
+      params: req.params
+    });
+    
     try {
-      const { pairingIndex, result } = req.body;
-      const { tournamentId, roundNumber } = req.params;
-  
+      const { roundNumber, pairingIndex, result } = req.body;
+      const { tournamentId } = req.params;
+
+      console.log('Looking for tournament:', tournamentId);
       const tournament = await Tournament.findById(tournamentId);
+      
       if (!tournament) {
-        console.warn(`Tournament not found for ID: ${tournamentId}`);
+        console.warn('Tournament not found:', tournamentId);
         return res.status(404).json({ error: 'Tournament not found' });
       }
-  
-      const round = tournament.rounds.find((r) => r.roundNumber === parseInt(roundNumber));
+
+      console.log('Finding round:', roundNumber);
+      const round = tournament.rounds.find(r => r.roundNumber === roundNumber);
+      
       if (!round) {
-        console.warn(`Round not found: ${roundNumber}`);
+        console.warn('Round not found:', roundNumber);
         return res.status(404).json({ error: 'Round not found' });
       }
-  
+
       if (pairingIndex < 0 || pairingIndex >= round.pairings.length) {
-        console.warn(`Invalid pairing index: ${pairingIndex}`);
+        console.warn('Invalid pairing index:', pairingIndex);
         return res.status(400).json({ error: 'Invalid pairing index' });
       }
-  
+
+      console.log('Current pairing:', round.pairings[pairingIndex]);
+      console.log('Setting result to:', result);
+      
       round.pairings[pairingIndex].result = result;
       round.completed = round.pairings.every((p) => p.result !== null);
-      tournament.status = tournament.rounds.every((r) => r.completed) ? 'completed' : 'in_progress';
-  
+      tournament.status = 'in_progress';
+
       await tournament.save();
-  
-      console.log('Updated pairing result successfully:', round.pairings[pairingIndex]);
-      return res.json({ message: 'Pairing result updated successfully', pairing: round.pairings[pairingIndex] });
+      console.log('Tournament saved with updated result');
+
+      const updatedTournament = await Tournament.findById(tournamentId)
+        .populate('rounds.pairings.white')
+        .populate('rounds.pairings.black');
+
+      const updatedRound = updatedTournament.rounds.find(r => r.roundNumber === roundNumber);
+      
+      res.json({
+        message: 'Pairing result updated successfully',
+        round: updatedRound
+      });
     } catch (err) {
       console.error('Error updating pairing result:', err);
       return res.status(500).json({ error: 'Failed to update pairing result' });
@@ -136,7 +152,6 @@ class TournamentRoundsController {
         return res.status(404).json({ error: 'Tournament not found' });
       }
 
-      // Calculate standings
       const standings = tournament.players.map(player => {
         let score = 0;
         let gamesPlayed = 0;
