@@ -5,6 +5,7 @@ import Players from './pages/Players';
 import Tournaments from './pages/Tournaments';
 import TournamentDetail from './components/TournamentDetail';
 import TournamentForm from './components/TournamentForm';
+import RankingsPage from './pages/RankingsPage';
 import Layout from './components/Layout';
 import TournamentEditWrapper from './components/TournamentEditWrapper';
 
@@ -102,6 +103,7 @@ const App = () => {
             <Route path="/" element={<Tournaments token={token} />} />
             <Route path="/players" element={<Players token={token} />} />
             <Route path="/tournaments" element={<Tournaments token={token} />} />
+            <Route path="/rankings" element={<RankingsPage token={token} />} />
             <Route
               path="/tournaments/:id"
               element={<TournamentDetail token={token} />}

@@ -13,6 +13,9 @@ const Layout = ({ children, logout }) => {
           <li>
             <Link to="/players" className="hover:text-gray-400">Players</Link>
           </li>
+          <li>
+            <Link to="/rankings" className="hover:text-gray-400">Rankings</Link>
+          </li>
         </ul>
         <button
           onClick={logout}
