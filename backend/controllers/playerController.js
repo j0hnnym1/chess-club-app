@@ -1,6 +1,6 @@
 const PlayerService = require('../services/playerService.js');
 const Player = require('../models/Player');
-const GameScore = require('../models/GameScore');
+const Tournament = require('../models/Tournament');
 
 class PlayerController {
   static async getAllPlayers(req, res) {
@@ -17,54 +17,78 @@ class PlayerController {
     console.log('Getting player rankings');
     console.log('Request headers:', req.headers);
     console.log('Request query params:', req.query);
+
     try {
-      // Get all players with their games
+      // Get all players
       const players = await Player.find().lean();
       console.log('Found players:', players);
+
+      // Get all tournaments
+      const tournaments = await Tournament.find()
+        .populate('rounds.pairings.white')
+        .populate('rounds.pairings.black')
+        .lean();
+      console.log('Found tournaments:', tournaments);
 
       const rankings = await Promise.all(players.map(async (player) => {
         console.log('Processing player:', player);
         
-        // Get all games for this player
-        const games = await GameScore.find({
-          $or: [
-            { player1Id: player._id },
-            { player2Id: player._id }
-          ]
-        }).lean();
-        
-        console.log('Games for player:', games);
+        let totalWins = 0;
+        let totalLosses = 0;
+        let totalDraws = 0;
+        let gamesPlayed = 0;
 
-        // Calculate statistics
-        let wins = 0;
-        let losses = 0;
-        let draws = 0;
+        // Loop through all tournaments
+        for (const tournament of tournaments) {
+          for (const round of tournament.rounds || []) {
+            if (!round.completed) continue;
 
-        games.forEach(game => {
-          if (game.result === 'Player1' && game.player1Id.equals(player._id)) wins++;
-          else if (game.result === 'Player2' && game.player2Id.equals(player._id)) wins++;
-          else if (game.result === 'Draw') draws++;
-          else if (game.result !== 'Pending' && game.result !== null) losses++;
+            for (const pairing of round.pairings || []) {
+              const isWhite = pairing.white && pairing.white._id.toString() === player._id.toString();
+              const isBlack = pairing.black && pairing.black._id.toString() === player._id.toString();
+
+              if (!isWhite && !isBlack) continue;
+
+              if (pairing.result === 'bye') {
+                totalWins++;
+                gamesPlayed++;
+              } else if (pairing.result) {
+                gamesPlayed++;
+                if ((isWhite && pairing.result === '1-0') || (isBlack && pairing.result === '0-1')) {
+                  totalWins++;
+                } else if ((isWhite && pairing.result === '0-1') || (isBlack && pairing.result === '1-0')) {
+                  totalLosses++;
+                } else if (pairing.result === '0.5-0.5') {
+                  totalDraws++;
+                }
+              }
+            }
+          }
+        }
+
+        console.log('Stats for player', player.name, ':', {
+          gamesPlayed,
+          wins: totalWins,
+          losses: totalLosses,
+          draws: totalDraws
         });
 
         return {
           ...player,
-          gamesPlayed: games.length,
-          wins,
-          losses,
-          draws,
-          winPercentage: games.length > 0 ? (wins / games.length) * 100 : 0
+          gamesPlayed,
+          wins: totalWins,
+          losses: totalLosses,
+          draws: totalDraws,
+          winRate: gamesPlayed > 0 ? 
+            ((totalWins + (totalDraws * 0.5)) / gamesPlayed * 100).toFixed(1) : 
+            '-'
         };
       }));
 
-      // Sort by rating and win percentage
-      rankings.sort((a, b) => {
-        if (b.rating === a.rating) {
-          return b.winPercentage - a.winPercentage;
-        }
-        return b.rating - a.rating;
-      });
+      // Sort by rating descending
+      rankings.sort((a, b) => b.rating - a.rating);
 
+      console.log('Sending rankings response:', rankings.length, 'players');
       res.json(rankings);
     } catch (err) {
       console.error('Error getting rankings:', err);
