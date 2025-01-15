@@ -67,42 +67,109 @@ class GameScoreController {
     }
   }
 
-  // New Method: Update Game Result and Player Ratings
   static async updateGameResult(req, res) {
-    //Debugging
-    console.log('updateGameResult called with:', req.body);
+    console.log('=== updateGameResult called ===');
+    console.log('Request body:', req.body);
+    console.log('Request params:', req.params);
+    
     try {
       const { gameId, result } = req.body;
+      console.log('Looking for game with ID:', gameId);
 
-      // Fetch the game details
-      const game = await GameScore.findById(gameId);
+      const game = await GameScore.findById(gameId || req.params.gameId);
+      console.log('Found game:', game);
+      
       if (!game) {
+        console.error('Game not found with ID:', gameId || req.params.gameId);
         return res.status(404).json({ error: 'Game not found' });
       }
 
+      console.log('Fetching players...');
+      console.log('Player1 ID:', game.player1Id);
+      console.log('Player2 ID:', game.player2Id);
+
       const player1 = await Player.findById(game.player1Id);
       const player2 = await Player.findById(game.player2Id);
+      
+      console.log('Found player1:', player1);
+      console.log('Found player2:', player2);
 
       if (!player1 || !player2) {
+        console.error('Players not found:', { player1Id: game.player1Id, player2Id: game.player2Id });
         return res.status(404).json({ error: 'Players not found' });
       }
 
-      // Calculate new ratings
-      const { newRatingA, newRatingB } = RatingService.calculateNewRatings(player1, player2, result);
+      console.log('Current ratings - Player1:', player1.rating, 'Player2:', player2.rating);
+      console.log('Calculating new ratings for result:', result);
 
-      // Update players' ratings
+      const {
+        newRatingA,
+        newRatingDeviationA,
+        newVolatilityA,
+        newRatingB,
+        newRatingDeviationB,
+        newVolatilityB
+      } = RatingService.calculateNewRatings(player1, player2, result);
+
+      console.log('New calculated ratings:', {
+        player1: {
+          before: player1.rating,
+          after: newRatingA,
+          deviation: newRatingDeviationA,
+          volatility: newVolatilityA
+        },
+        player2: {
+          before: player2.rating,
+          after: newRatingB,
+          deviation: newRatingDeviationB,
+          volatility: newVolatilityB
+        }
+      });
+
+      // Update player1
       player1.rating = newRatingA;
+      player1.ratingDeviation = newRatingDeviationA;
+      player1.volatility = newVolatilityA;
+      player1.lastPlayed = new Date();
+
+      // Update player2
       player2.rating = newRatingB;
+      player2.ratingDeviation = newRatingDeviationB;
+      player2.volatility = newVolatilityB;
+      player2.lastPlayed = new Date();
 
-      await player1.save();
-      await player2.save();
+      console.log('Saving updated player1:', player1);
+      console.log('Saving updated player2:', player2);
 
-      // Update game result
+      const savedPlayer1 = await player1.save();
+      const savedPlayer2 = await player2.save();
+
+      console.log('Players saved successfully');
+      console.log('Saved player1:', savedPlayer1);
+      console.log('Saved player2:', savedPlayer2);
+
       game.result = result;
-      await game.save();
+      const savedGame = await game.save();
+      console.log('Game updated successfully:', savedGame);
 
-      res.json({ message: 'Game result and ratings updated', game });
+      res.json({ 
+        message: 'Game result and ratings updated', 
+        game: savedGame,
+        player1Ratings: {
+          rating: savedPlayer1.rating,
+          ratingDeviation: savedPlayer1.ratingDeviation,
+          volatility: savedPlayer1.volatility
+        },
+        player2Ratings: {
+          rating: savedPlayer2.rating,
+          ratingDeviation: savedPlayer2.ratingDeviation,
+          volatility: savedPlayer2.volatility
+        }
+      });
     } catch (err) {
+      console.error('=== Error in updateGameResult ===');
+      console.error('Error details:', err);
+      console.error('Stack trace:', err.stack);
       res.status(500).json({ error: err.message });
     }
   }
