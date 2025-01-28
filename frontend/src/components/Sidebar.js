@@ -15,7 +15,8 @@ import {
   Leaderboard as RankingsIcon,
   EmojiEvents as TournamentIcon,
   People as PeopleIcon,
-  ExitToApp as LogoutIcon
+  ExitToApp as LogoutIcon,
+  Groups as ClubsIcon
 } from '@mui/icons-material';
 
 const drawerWidth = 240;
@@ -27,6 +28,7 @@ const Sidebar = ({ logout }) => {
     { icon: <RankingsIcon />, text: 'Rankings', path: '/rankings' },
     { icon: <TournamentIcon />, text: 'Tournaments', path: '/tournaments' },
     { icon: <PeopleIcon />, text: 'Players', path: '/players' },
+    { icon: <ClubsIcon />, text: 'Clubs', path: '/clubs' },
   ];
 
   return (

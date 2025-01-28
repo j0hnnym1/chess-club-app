@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Login from './pages/Login';
 import Players from './pages/Players';
+import PlayerProfile from './components/PlayerProfile';
+import ClubPage from './pages/ClubPage';
+import ClubDetail from './components/ClubDetail';
 import Tournaments from './pages/Tournaments';
 import TournamentDetail from './components/TournamentDetail';
 import TournamentForm from './components/TournamentForm';
@@ -102,21 +105,13 @@ const App = () => {
           <Routes>
             <Route path="/" element={<Tournaments token={token} />} />
             <Route path="/players" element={<Players token={token} />} />
+            <Route path="/players/:id" element={<PlayerProfile token={token} />} />
             <Route path="/tournaments" element={<Tournaments token={token} />} />
             <Route path="/rankings" element={<RankingsPage token={token} />} />
-            <Route
-              path="/tournaments/:id"
-              element={<TournamentDetail token={token} />}
-            />
-            <Route
-              path="/tournaments/create"
-              element={
-                <TournamentForm
-                  token={token}
-                  onSubmit={handleCreate}
-                />
-              }
-            />
+            <Route path="/clubs" element={<ClubPage token={token}/>} />
+            <Route path="/clubs/:id" element={<ClubDetail token={token} />} />
+            <Route path="/tournaments/:id" element={<TournamentDetail token={token} />} />
+            <Route path="/tournaments/create" element={<TournamentForm token={token} onSubmit={handleCreate} />} />
             <Route
               path="/tournaments/:id/edit"
               element={

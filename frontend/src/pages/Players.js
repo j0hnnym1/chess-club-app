@@ -10,6 +10,7 @@ import {
 import { fetchPlayers, createPlayer, deletePlayer, updatePlayer } from '../services/playerService';
 import PlayerForm from '../components/PlayerForm';
 import PlayerList from '../components/PlayerList';
+import axios from 'axios';
 
 const Players = ({ token }) => {
   const queryClient = useQueryClient();
@@ -20,9 +21,21 @@ const Players = ({ token }) => {
     rating: 1500
   });
 
-  const { data: players, error, isLoading } = useQuery({
+  const { data: players, error: playersError, isLoading: isPlayersLoading } = useQuery({
     queryKey: ['players'],
     queryFn: () => fetchPlayers(token),
+  });
+
+  const { data: clubs, error: clubsError, isLoading: isClubsLoading } = useQuery({
+    queryKey: ['clubs'],
+    queryFn: async () => {
+      console.log('Fetching clubs...'); // Debug
+      const response = await axios.get('http://localhost:3000/api/clubs', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      console.log('Clubs response:', response.data); // Debug
+      return response.data;
+    }
   });
 
   const createMutation = useMutation({
@@ -54,24 +67,7 @@ const Players = ({ token }) => {
     }
   });
 
-  const updateMutation = useMutation({
-    mutationFn: ({ playerId, playerData }) => {
-      console.log('Updating player:', { playerId, playerData });
-      return updatePlayer(token, playerId, playerData);
-    },
-    onSuccess: (data) => {
-      console.log('Player updated successfully:', data);
-      queryClient.invalidateQueries(['players']);
-    }
-  });
-
-  const handleCreate = (e) => {
-    e.preventDefault();
-    console.log('Form submitted with data:', formData);
-    createMutation.mutate(formData);
-  };
-
-  if (isLoading) {
+  if (isPlayersLoading || isClubsLoading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="50vh">
         <CircularProgress />
@@ -79,11 +75,11 @@ const Players = ({ token }) => {
     );
   }
 
-  if (error) {
+  if (playersError || clubsError) {
     return (
       <Container maxWidth="lg" sx={{ mt: 4 }}>
         <Alert severity="error">
-          Error fetching players: {error.message}
+          Error loading data: {playersError?.message || clubsError?.message}
         </Alert>
       </Container>
     );
@@ -104,11 +100,16 @@ const Players = ({ token }) => {
       <PlayerForm
         formData={formData}
         onChange={setFormData}
-        onSubmit={handleCreate}
+        onSubmit={(e) => {
+          e.preventDefault();
+          console.log('Form submitted with data:', formData);
+          createMutation.mutate(formData);
+        }}
       />
 
       <PlayerList
         players={players}
+        clubs={clubs}
         onDelete={(id) => deleteMutation.mutate(id)}
       />
     </Container>

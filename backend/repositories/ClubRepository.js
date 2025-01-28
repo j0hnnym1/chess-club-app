@@ -1,24 +1,24 @@
-const ClubDAO = require('../dao/ClubDAO.js');
+const Club = require('../models/Club');
 
 class ClubRepository {
   static async getAllClubs() {
-    return await ClubDAO.findAll();
+    return await Club.find(); // Retrieve all clubs
   }
 
   static async getClubById(id) {
-    return await ClubDAO.findById(id);
+    return await Club.findById(id); // Retrieve club by ID
   }
 
   static async saveClub(data) {
-    return await ClubDAO.create(data);
+    return await Club.create(data); // Save a new club
   }
 
   static async updateClub(id, data) {
-    return await ClubDAO.updateById(id, data);
+    return await Club.findByIdAndUpdate(id, data, { new: true }); // Update club
   }
 
   static async deleteClub(id) {
-    return await ClubDAO.deleteById(id);
+    return await Club.findByIdAndDelete(id); // Delete club
   }
 }
 
