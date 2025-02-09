@@ -59,13 +59,13 @@ const Sidebar = ({ logout }) => {
             key={item.path}
             component={Link}
             to={item.path}
-            button
             selected={location.pathname === item.path}
             sx={{
               my: 0.5,
               borderRadius: 1,
               mx: 1,
               color: 'white',
+              cursor: 'pointer', // Add this to maintain clickable behavior
               '&.Mui-selected': {
                 bgcolor: 'rgba(255, 255, 255, 0.12)',
                 '&:hover': {

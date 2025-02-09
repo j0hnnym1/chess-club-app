@@ -99,11 +99,7 @@ const RankingsPage = ({ token }) => {
                     <TableCell>{player.name}</TableCell>
                     <TableCell align="right">{Math.round(player.rating)}</TableCell>
                     <TableCell align="right">{player.gamesPlayed || 0}</TableCell>
-                    <TableCell align="right">
-                      {player.gamesPlayed
-                        ? `${Math.round((player.wins / player.gamesPlayed) * 100)}%`
-                        : '-'}
-                    </TableCell>
+                    <TableCell align="right">{player.winRate}%</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
