@@ -51,6 +51,11 @@ const Login = ({ setToken }) => {
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
+    if (loginData.password.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      return;
+    }
+
     try {
       const response = await axios.post('http://localhost:3000/api/auth/login', {
         email: loginData.email,
@@ -70,6 +75,11 @@ const Login = ({ setToken }) => {
     e.preventDefault();
     setError('');
     setSuccess('');
+
+    if (registerData.password.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      return;
+    }
 
     if (registerData.password !== registerData.confirmPassword) {
       setError('Passwords do not match');
