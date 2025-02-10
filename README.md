@@ -36,7 +36,7 @@ Frontend
 cd ../frontend
 npm install
 ```
-Create Environment File (details provided in file)
+### Create Environment File (details provided in file)
 Inside backend/.env
 
 ### Start Servers
